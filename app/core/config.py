@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://user:password@localhost:5432/db"
     secret_key: str = "change-me-in-production"
     debug: bool = False
+    seed_db: bool = False
 
     aws_access_key_id: str = ""
     aws_secret_access_key: str = ""
