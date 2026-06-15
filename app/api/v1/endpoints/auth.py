@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.deps import require_login
 from app.db.session import get_db
 from app.schemas.auth import (
     AccessTokenResp,
@@ -98,3 +99,12 @@ async def login(
             token=access_token,
         )
     )
+
+
+@router.delete("/user/session", response_model=SuccessResponse[None])
+async def logout(
+    response: Response,
+    _user_id: str = Depends(require_login),
+) -> SuccessResponse[None]:
+    response.delete_cookie(key="refresh_token", httponly=True, samesite="lax")
+    return SuccessResponse(data=None)
