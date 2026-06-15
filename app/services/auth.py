@@ -10,6 +10,7 @@ from app.core.security import (
     create_access_token,
     create_refresh_token,
     create_verification_token,
+    decode_token,
     get_password_hash,
     verify_password,
 )
@@ -68,6 +69,17 @@ async def register(db: AsyncSession, data: RegisterReq) -> tuple[User, str, str]
     await db.refresh(user)
     user_id = str(user.id)
     return user, create_access_token(user_id), create_refresh_token(user_id)
+
+
+def refresh_access_token(refresh_token: str) -> str:
+    try:
+        user_id = decode_token(refresh_token)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="유효하지 않거나 만료된 리프레시 토큰입니다.",
+        ) from e
+    return create_access_token(user_id)
 
 
 async def login(db: AsyncSession, data: LoginReq) -> tuple[User, str, str]:

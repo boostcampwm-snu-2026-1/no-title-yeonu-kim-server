@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.schemas.auth import (
+    AccessTokenResp,
     AuthResp,
     EmailCheckReq,
     EmailValidateReq,
@@ -64,6 +65,18 @@ async def register(
             token=access_token,
         )
     )
+
+
+@router.get("/token", response_model=SuccessResponse[AccessTokenResp])
+async def refresh_token(request: Request) -> SuccessResponse[AccessTokenResp]:
+    token = request.cookies.get("refresh_token")
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="리프레시 토큰이 없습니다.",
+        )
+    access_token = auth_service.refresh_access_token(token)
+    return SuccessResponse(data=AccessTokenResp(accessToken=access_token))
 
 
 @router.post("/user/session", response_model=SuccessResponse[AuthResp])
