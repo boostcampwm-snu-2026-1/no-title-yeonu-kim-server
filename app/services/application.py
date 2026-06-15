@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import logging
 import re
 from typing import Literal, cast
 from uuid import UUID
@@ -35,6 +36,8 @@ from app.schemas.application import (
     ReviewSubmissionDetail,
     ReviewSubmissionReq,
 )
+
+logger = logging.getLogger(__name__)
 
 _MediaType = Literal["image/jpeg", "image/png", "image/gif", "image/webp"]
 _SUPPORTED_MEDIA_TYPES: frozenset[str] = frozenset(
@@ -101,6 +104,12 @@ async def _validate_image_condition(image_key: str, condition: str) -> None:
     )
 
     block = response.content[0]
+    verdict = (
+        block.text.strip()
+        if isinstance(block, anthropic.types.TextBlock)
+        else "(non-text block)"
+    )
+    logger.warning("[IMAGE_VALIDATION] key=%s verdict=%r", image_key, verdict)
     if not isinstance(block, anthropic.types.TextBlock) or "FAIL" in block.text.upper():
         raise ImageConditionNotMetError()
 
