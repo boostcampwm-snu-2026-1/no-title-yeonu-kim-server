@@ -49,6 +49,16 @@ async def get_event(
     )
 
 
+@router.delete("/{eventId}", response_model=SuccessResponse[None])
+async def delete_event(
+    eventId: str,
+    db: AsyncSession = Depends(get_db),
+    owner_id: str = Depends(require_login),
+) -> SuccessResponse[None]:
+    await event_service.delete_event(db, eventId, owner_id)
+    return SuccessResponse(data=None)
+
+
 @router.post("", response_model=SuccessResponse[EventResp])
 async def create_event(
     body: EventCreateReq,

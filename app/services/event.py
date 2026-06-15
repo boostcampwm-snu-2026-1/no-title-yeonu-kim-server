@@ -38,6 +38,18 @@ async def get_event_or_404(db: AsyncSession, event_id: str) -> Event:
     return event
 
 
+async def delete_event(db: AsyncSession, event_id: str, owner_id: str) -> None:
+    event = await get_event_or_404(db, event_id)
+    store = await db.scalar(select(Store).where(Store.id == event.store_id))
+    if not store or str(store.owner_id) != owner_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="본인 소유의 이벤트가 아닙니다.",
+        )
+    await db.delete(event)
+    await db.commit()
+
+
 async def create_event(db: AsyncSession, owner_id: str, data: EventCreateReq) -> Event:
     store = await _get_store_or_404(db, data.storeId)
     if str(store.owner_id) != owner_id:
