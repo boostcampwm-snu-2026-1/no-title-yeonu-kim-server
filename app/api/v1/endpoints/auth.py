@@ -1,12 +1,15 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.schemas.auth import (
+    AuthResp,
     EmailCheckReq,
     EmailValidateReq,
     EmailValidateResp,
     EmailVerifyReq,
+    RegisterReq,
+    UserInfo,
 )
 from app.schemas.common import SuccessResponse
 from app.services import auth as auth_service
@@ -39,3 +42,24 @@ async def validate_email(
 ) -> SuccessResponse[EmailValidateResp]:
     token = await auth_service.validate_verification_code(db, body.email, body.code)
     return SuccessResponse(data=EmailValidateResp(verificationToken=token))
+
+
+@router.post("/user", response_model=SuccessResponse[AuthResp])
+async def register(
+    body: RegisterReq,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+) -> SuccessResponse[AuthResp]:
+    user, access_token, refresh_token = await auth_service.register(db, body)
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        samesite="lax",
+    )
+    return SuccessResponse(
+        data=AuthResp(
+            user=UserInfo(id=str(user.id), userRole=user.role),
+            token=access_token,
+        )
+    )
