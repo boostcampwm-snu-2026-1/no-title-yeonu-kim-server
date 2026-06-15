@@ -1,6 +1,7 @@
 import random
 import string
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -96,6 +97,19 @@ async def login(db: AsyncSession, data: LoginReq) -> tuple[User, str, str]:
         )
     user_id = str(user.id)
     return user, create_access_token(user_id), create_refresh_token(user_id)
+
+
+async def change_password(
+    db: AsyncSession, user_id: str, old_password: str, new_password: str
+) -> None:
+    user = await db.scalar(select(User).where(User.id == UUID(user_id)))
+    if not user or not verify_password(old_password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="현재 비밀번호가 올바르지 않습니다.",
+        )
+    user.password_hash = get_password_hash(new_password)
+    await db.commit()
 
 
 async def check_email_duplicate(db: AsyncSession, email: str) -> None:

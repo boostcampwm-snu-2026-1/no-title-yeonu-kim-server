@@ -6,6 +6,7 @@ from app.db.session import get_db
 from app.schemas.auth import (
     AccessTokenResp,
     AuthResp,
+    ChangePasswordReq,
     EmailCheckReq,
     EmailValidateReq,
     EmailValidateResp,
@@ -107,4 +108,14 @@ async def logout(
     _user_id: str = Depends(require_login),
 ) -> SuccessResponse[None]:
     response.delete_cookie(key="refresh_token", httponly=True, samesite="lax")
+    return SuccessResponse(data=None)
+
+
+@router.patch("/password", response_model=SuccessResponse[None])
+async def change_password(
+    body: ChangePasswordReq,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(require_login),
+) -> SuccessResponse[None]:
+    await auth_service.change_password(db, user_id, body.oldPassword, body.newPassword)
     return SuccessResponse(data=None)
