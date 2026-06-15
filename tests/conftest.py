@@ -1,14 +1,104 @@
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.pool import StaticPool
 
+from app.core.security import create_access_token, get_password_hash
+from app.db.base import Base
+from app.db.session import get_db
 from app.main import app
+from app.models.email_verification import EmailVerification
+from app.models.user import User
+
+DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
 @pytest.fixture
-async def client() -> AsyncGenerator[AsyncClient, None]:
+async def engine() -> AsyncGenerator[AsyncEngine, None]:
+    _engine = create_async_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    async with _engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield _engine
+    await _engine.dispose()
+
+
+@pytest.fixture
+async def db(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as session:
+        yield session
+
+
+@pytest.fixture
+async def client(engine: AsyncEngine) -> AsyncGenerator[AsyncClient, None]:
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
+        async with factory() as session:
+            yield session
+
+    app.dependency_overrides[get_db] = override_get_db
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as ac:
         yield ac
+    app.dependency_overrides.clear()
+
+
+async def create_user(
+    db: AsyncSession,
+    *,
+    email: str = "test@example.com",
+    password: str = "password123",
+    role: str = "REVIEWER",
+    username: str = "testuser",
+) -> User:
+    user = User(
+        email=email,
+        password_hash=get_password_hash(password),
+        role=role,
+        username=username,
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+async def create_verification(
+    db: AsyncSession,
+    *,
+    email: str = "test@example.com",
+    code: str = "123456",
+    expired: bool = False,
+    is_verified: bool = False,
+) -> EmailVerification:
+    delta = timedelta(minutes=-1) if expired else timedelta(minutes=10)
+    record = EmailVerification(
+        email=email,
+        code=code,
+        expires_at=datetime.now(UTC) + delta,
+        is_verified=is_verified,
+    )
+    db.add(record)
+    await db.commit()
+    await db.refresh(record)
+    return record
+
+
+def auth_headers(user_id: UUID) -> dict[str, str]:
+    token = create_access_token(str(user_id))
+    return {"Authorization": f"Bearer {token}"}
