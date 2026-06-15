@@ -295,3 +295,34 @@ class TestChangePassword:
             json={"oldPassword": "x", "newPassword": "y"},
         )
         assert res.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+class TestResetPassword:
+    async def test_updates_password_hash_in_db(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        user = await create_user(db, email="reset@example.com", password="original")
+        original_hash = user.password_hash
+
+        res = await client.post(
+            "/api/auth/password", json={"email": "reset@example.com"}
+        )
+        assert res.status_code == 200
+
+        await db.refresh(user)
+        assert user.password_hash != original_hash
+        assert not verify_password("original", user.password_hash)
+
+    async def test_response_format(self, client: AsyncClient, db: AsyncSession) -> None:
+        await create_user(db, email="reset@example.com")
+        res = await client.post(
+            "/api/auth/password", json={"email": "reset@example.com"}
+        )
+        assert res.json() == {"status": 200, "data": None}
+
+    async def test_unknown_email_returns_404(self, client: AsyncClient) -> None:
+        res = await client.post(
+            "/api/auth/password", json={"email": "ghost@example.com"}
+        )
+        assert res.status_code == 404
