@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.security import create_verification_token
 from app.models.email_verification import EmailVerification
 from app.models.user import User
 
@@ -17,6 +18,29 @@ async def send_verification_code(db: AsyncSession, email: str) -> None:
     db.add(verification)
     await db.commit()
     print(f"[DEV] Verification code for {email}: {code}")
+
+
+async def validate_verification_code(db: AsyncSession, email: str, code: str) -> str:
+    record = await db.scalar(
+        select(EmailVerification)
+        .where(
+            EmailVerification.email == email,
+            EmailVerification.code == code,
+            EmailVerification.is_verified.is_(False),
+            EmailVerification.expires_at > datetime.now(UTC),
+        )
+        .order_by(EmailVerification.created_at.desc())
+    )
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="코드가 일치하지 않거나 만료되었습니다.",
+        )
+    token = create_verification_token(email)
+    record.is_verified = True
+    record.verification_token = token
+    await db.commit()
+    return token
 
 
 async def check_email_duplicate(db: AsyncSession, email: str) -> None:
