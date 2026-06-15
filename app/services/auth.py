@@ -7,6 +7,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.email import send_temp_password_email, send_verification_email
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -26,7 +27,7 @@ async def send_verification_code(db: AsyncSession, email: str) -> None:
     verification = EmailVerification(email=email, code=code, expires_at=expires_at)
     db.add(verification)
     await db.commit()
-    print(f"[DEV] Verification code for {email}: {code}")
+    await send_verification_email(email, code)
 
 
 async def validate_verification_code(db: AsyncSession, email: str, code: str) -> str:
@@ -122,7 +123,7 @@ async def reset_password(db: AsyncSession, data: ResetPasswordReq) -> None:
     temp_password = "".join(random.choices(string.ascii_letters + string.digits, k=12))
     user.password_hash = get_password_hash(temp_password)
     await db.commit()
-    print(f"[DEV] Temporary password for {data.email}: {temp_password}")
+    await send_temp_password_email(data.email, temp_password)
 
 
 async def check_email_duplicate(db: AsyncSession, email: str) -> None:

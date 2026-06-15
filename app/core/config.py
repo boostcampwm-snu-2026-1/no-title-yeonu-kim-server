@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     s3_public_bucket: str = ""
     s3_presigned_expiry: int = 3600
 
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+
     anthropic_api_key: str = ""
 
     model_config = {"env_file": ".env"}
