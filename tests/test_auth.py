@@ -3,7 +3,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import verify_password
+from app.core.security import create_refresh_token, verify_password
 from app.models.email_verification import EmailVerification
 from app.models.user import User
 from tests.conftest import create_user, create_verification
@@ -216,4 +216,28 @@ class TestLogin:
             "/api/auth/user/session",
             json={"role": "REVIEWER", "mail": "nobody@example.com", "password": "x"},
         )
+        assert res.status_code == 401
+
+
+@pytest.mark.asyncio
+class TestRefreshToken:
+    async def test_valid_cookie_returns_access_token(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        user = await create_user(db)
+        token = create_refresh_token(str(user.id))
+        client.cookies.set("refresh_token", token)
+        res = await client.get("/api/auth/token")
+        assert res.status_code == 200
+        body = res.json()
+        assert "accessToken" in body["data"]
+        assert isinstance(body["data"]["accessToken"], str)
+
+    async def test_no_cookie_returns_401(self, client: AsyncClient) -> None:
+        res = await client.get("/api/auth/token")
+        assert res.status_code == 401
+
+    async def test_invalid_token_returns_401(self, client: AsyncClient) -> None:
+        client.cookies.set("refresh_token", "this.is.invalid")
+        res = await client.get("/api/auth/token")
         assert res.status_code == 401
