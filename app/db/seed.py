@@ -101,7 +101,7 @@ async def reset_and_seed(engine: AsyncEngine) -> None:
                 Event(
                     id=uuid4(),
                     title="카페 브루잉 음료 리뷰",
-                    condition="네이버 지도 리뷰 작성 및 별점 4점 이상",
+                    condition="네이버 지도 리뷰 작성",
                     reward=3000,
                     is_active=True,
                     store_id=store2.id,
@@ -109,7 +109,7 @@ async def reset_and_seed(engine: AsyncEngine) -> None:
                 Event(
                     id=uuid4(),
                     title="에이블 패션 스타일링 후기",
-                    condition="구매 후 착용샷과 함께 SNS 게시 (팔로워 500명 이상)",
+                    condition="구매 후 착용샷과 함께 SNS 게시",
                     reward=15000,
                     is_active=True,
                     store_id=store3.id,
