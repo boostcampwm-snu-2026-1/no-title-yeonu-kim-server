@@ -49,9 +49,7 @@ class TestDeposit:
             json={"amount": 10000},
             headers=auth_headers(user.id),
         )
-        saved = await db.scalar(
-            select(Deposit).where(Deposit.user_id == user.id)
-        )
+        saved = await db.scalar(select(Deposit).where(Deposit.user_id == user.id))
         assert saved is not None
         assert saved.amount == 10000
         assert saved.balance == 10000
