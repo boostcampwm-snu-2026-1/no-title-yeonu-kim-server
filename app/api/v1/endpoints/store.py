@@ -51,7 +51,7 @@ async def create_store(
             id=str(store.id),
             name=store.name,
             address=store.address,
-            category=store.category,  # type: ignore[arg-type]
+            category=store.category,
             thumbnailKey=store.thumbnail_key,
             description=store.description,
         )

@@ -99,9 +99,7 @@ class TestCreateStore:
             "category": "CAFE",
             "description": "A cozy cafe",
         }
-        res = await client.post(
-            "/api/store", json=body, headers=auth_headers(owner.id)
-        )
+        res = await client.post("/api/store", json=body, headers=auth_headers(owner.id))
         assert res.status_code == 200
         data = res.json()["data"]
         assert data["name"] == "My Cafe"
@@ -121,9 +119,7 @@ class TestCreateStore:
             "category": "FASHION",
             "thumbnailUrl": "stores/thumb.jpg",
         }
-        res = await client.post(
-            "/api/store", json=body, headers=auth_headers(owner.id)
-        )
+        res = await client.post("/api/store", json=body, headers=auth_headers(owner.id))
         assert res.status_code == 200
         assert res.json()["data"]["thumbnailKey"] == "stores/thumb.jpg"
 
@@ -132,9 +128,7 @@ class TestCreateStore:
     ) -> None:
         owner = await create_user(db, role="OWNER")
         body = {"name": "DB Store", "address": "Incheon", "category": "ETC"}
-        res = await client.post(
-            "/api/store", json=body, headers=auth_headers(owner.id)
-        )
+        res = await client.post("/api/store", json=body, headers=auth_headers(owner.id))
         assert res.status_code == 200
         from uuid import UUID
 
@@ -238,9 +232,7 @@ class TestGetStoreEvents:
         titles = {e["title"] for e in data["events"]}
         assert titles == {"Event A", "Event B"}
 
-    async def test_event_fields(
-        self, client: AsyncClient, db: AsyncSession
-    ) -> None:
+    async def test_event_fields(self, client: AsyncClient, db: AsyncSession) -> None:
         owner = await create_user(db, role="OWNER")
         store = await create_store(db, owner.id)
         await create_event(db, store.id, title="Check Fields", reward=9000)

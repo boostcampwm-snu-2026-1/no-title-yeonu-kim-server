@@ -51,7 +51,7 @@ async def list_stores(
                 id=str(store.id),
                 name=store.name,
                 address=store.address,
-                category=store.category,  # type: ignore[arg-type]
+                category=store.category,
                 thumbnailKey=store.thumbnail_key,
                 description=store.description,
                 events=[
@@ -97,9 +97,7 @@ async def delete_store(db: AsyncSession, store_id: str, user_id: str) -> None:
     await db.commit()
 
 
-async def list_store_events(
-    db: AsyncSession, store_id: str
-) -> list[StoreEventSummary]:
+async def list_store_events(db: AsyncSession, store_id: str) -> list[StoreEventSummary]:
     await get_store_or_404(db, store_id)
     events = await _get_store_events(db, UUID(store_id))
     return [
