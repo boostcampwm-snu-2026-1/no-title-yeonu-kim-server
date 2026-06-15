@@ -1,5 +1,8 @@
+from collections.abc import Generator
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import anthropic
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
@@ -19,6 +22,14 @@ from tests.conftest import (
 
 @pytest.mark.asyncio
 class TestCreateApplication:
+    @pytest.fixture(autouse=True)
+    def mock_image_validation(self) -> Generator[None, None, None]:
+        with patch(
+            "app.services.application._validate_image_condition",
+            new_callable=AsyncMock,
+        ):
+            yield
+
     async def test_reviewer_creates_application_returns_200(
         self, client: AsyncClient, db: AsyncSession
     ) -> None:
@@ -394,3 +405,127 @@ class TestSubmitReview:
             f"/api/application/{application.id}/submission", json=body
         )
         assert res.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+class TestCreateApplicationImageValidation:
+    def _make_claude_mock(self, verdict: str) -> tuple[MagicMock, AsyncMock]:
+        block = anthropic.types.TextBlock(text=verdict, type="text")
+        response = MagicMock()
+        response.content = [block]
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=response)
+        return response, mock_client
+
+    async def test_image_condition_pass_returns_200(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        reviewer = await create_user(db, role="REVIEWER")
+        owner = await create_user(db, email="owner@example.com", role="OWNER")
+        store = await create_store(db, owner.id)
+        event = await create_event(db, store.id, condition="음식 사진이어야 합니다.")
+        body = {
+            "eventId": str(event.id),
+            "walletAddress": "0xABC",
+            "imageKey": "reviews/food.jpg",
+        }
+        _, mock_client = self._make_claude_mock("PASS")
+        with (
+            patch(
+                "app.services.application._download_image",
+                new_callable=AsyncMock,
+                return_value=(b"fake-image", "image/jpeg"),
+            ),
+            patch("app.services.application.anthropic.AsyncAnthropic") as mock_cls,
+        ):
+            mock_cls.return_value = mock_client
+            res = await client.post(
+                "/api/applications", json=body, headers=auth_headers(reviewer.id)
+            )
+        assert res.status_code == 200
+        assert res.json() == {"status": 200, "data": None}
+
+    async def test_image_condition_fail_returns_422(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        reviewer = await create_user(db, role="REVIEWER")
+        owner = await create_user(db, email="owner@example.com", role="OWNER")
+        store = await create_store(db, owner.id)
+        event = await create_event(db, store.id, condition="음식 사진이어야 합니다.")
+        body = {
+            "eventId": str(event.id),
+            "walletAddress": "0xABC",
+            "imageKey": "reviews/not_food.jpg",
+        }
+        _, mock_client = self._make_claude_mock("FAIL")
+        with (
+            patch(
+                "app.services.application._download_image",
+                new_callable=AsyncMock,
+                return_value=(b"fake-image", "image/jpeg"),
+            ),
+            patch("app.services.application.anthropic.AsyncAnthropic") as mock_cls,
+        ):
+            mock_cls.return_value = mock_client
+            res = await client.post(
+                "/api/applications", json=body, headers=auth_headers(reviewer.id)
+            )
+        assert res.status_code == 422
+        data = res.json()["data"]
+        assert "조건" in data["message"]
+
+    async def test_application_not_saved_when_condition_fails(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        reviewer = await create_user(db, role="REVIEWER")
+        owner = await create_user(db, email="owner@example.com", role="OWNER")
+        store = await create_store(db, owner.id)
+        event = await create_event(db, store.id)
+        body = {
+            "eventId": str(event.id),
+            "walletAddress": "0xABC",
+            "imageKey": "reviews/bad.jpg",
+        }
+        _, mock_client = self._make_claude_mock("FAIL")
+        with (
+            patch(
+                "app.services.application._download_image",
+                new_callable=AsyncMock,
+                return_value=(b"fake-image", "image/jpeg"),
+            ),
+            patch("app.services.application.anthropic.AsyncAnthropic") as mock_cls,
+        ):
+            mock_cls.return_value = mock_client
+            await client.post(
+                "/api/applications", json=body, headers=auth_headers(reviewer.id)
+            )
+        saved = await db.scalar(
+            select(Application).where(Application.reviewer_id == reviewer.id)
+        )
+        assert saved is None
+
+    async def test_s3_download_error_returns_400(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        from fastapi import HTTPException
+
+        reviewer = await create_user(db, role="REVIEWER")
+        owner = await create_user(db, email="owner@example.com", role="OWNER")
+        store = await create_store(db, owner.id)
+        event = await create_event(db, store.id)
+        body = {
+            "eventId": str(event.id),
+            "walletAddress": "0xABC",
+            "imageKey": "reviews/missing.jpg",
+        }
+        with patch(
+            "app.services.application._download_image",
+            new_callable=AsyncMock,
+            side_effect=HTTPException(
+                status_code=400, detail="이미지를 불러올 수 없습니다."
+            ),
+        ):
+            res = await client.post(
+                "/api/applications", json=body, headers=auth_headers(reviewer.id)
+            )
+        assert res.status_code == 400

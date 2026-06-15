@@ -4,18 +4,18 @@ FastAPI 기반 백엔드 — 상점·이벤트·리뷰 신청 플랫폼
 
 ## Tech Stack
 
-| 분류 | 라이브러리 |
-|------|-----------|
-| 웹 프레임워크 | FastAPI |
-| ORM | SQLAlchemy 2.0 (async) |
-| DB | PostgreSQL (asyncpg) |
-| 마이그레이션 | Alembic |
-| 인증 | PyJWT (추가 필요) + passlib/bcrypt |
-| 파일 스토리지 | boto3 (S3) |
-| 스키마 검증 | Pydantic v2 |
-| 패키지 관리 | uv |
-| Lint/Format | ruff |
-| 타입 검사 | mypy strict |
+| 분류          | 라이브러리                         |
+| ------------- | ---------------------------------- |
+| 웹 프레임워크 | FastAPI                            |
+| ORM           | SQLAlchemy 2.0 (async)             |
+| DB            | PostgreSQL (asyncpg)               |
+| 마이그레이션  | Alembic                            |
+| 인증          | PyJWT (추가 필요) + passlib/bcrypt |
+| 파일 스토리지 | boto3 (S3)                         |
+| 스키마 검증   | Pydantic v2                        |
+| 패키지 관리   | uv                                 |
+| Lint/Format   | ruff                               |
+| 타입 검사     | mypy strict                        |
 
 ## 디렉토리 구조
 
@@ -92,9 +92,9 @@ API 명세 경로는 `/api/auth/...`, `/api/store/...` 형태 (v1 없음).
 
 작업 대상 패키지의 CLAUDE.md를 함께 읽을 것.
 
-| 작업 | 참조 파일 |
-|------|----------|
-| 모델 정의 | `app/models/CLAUDE.md` |
-| 스키마 정의 | `app/schemas/CLAUDE.md` |
-| 서비스 로직 | `app/services/CLAUDE.md` |
+| 작업                | 참조 파일                        |
+| ------------------- | -------------------------------- |
+| 모델 정의           | `app/models/CLAUDE.md`           |
+| 스키마 정의         | `app/schemas/CLAUDE.md`          |
+| 서비스 로직         | `app/services/CLAUDE.md`         |
 | 엔드포인트·API 명세 | `app/api/v1/endpoints/CLAUDE.md` |
