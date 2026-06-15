@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.email_verification import EmailVerification
-from tests.conftest import create_user
+from tests.conftest import create_user, create_verification
 
 
 @pytest.mark.asyncio
@@ -48,3 +48,66 @@ class TestEmailVerify:
             "/api/auth/email/verify", json={"email": "user@example.com"}
         )
         assert res.json() == {"status": 200, "data": None}
+
+
+@pytest.mark.asyncio
+class TestEmailValidate:
+    async def test_valid_code_returns_token(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        await create_verification(db, email="user@example.com", code="111111")
+        res = await client.post(
+            "/api/auth/email/validate",
+            json={"email": "user@example.com", "code": "111111"},
+        )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["status"] == 200
+        assert "verificationToken" in body["data"]
+        assert isinstance(body["data"]["verificationToken"], str)
+
+    async def test_valid_code_marks_verified_in_db(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        record = await create_verification(db, email="user@example.com", code="222222")
+        await client.post(
+            "/api/auth/email/validate",
+            json={"email": "user@example.com", "code": "222222"},
+        )
+        await db.refresh(record)
+        assert record.is_verified is True
+        assert record.verification_token is not None
+
+    async def test_wrong_code_returns_400(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        await create_verification(db, email="user@example.com", code="333333")
+        res = await client.post(
+            "/api/auth/email/validate",
+            json={"email": "user@example.com", "code": "000000"},
+        )
+        assert res.status_code == 400
+
+    async def test_expired_code_returns_400(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        await create_verification(
+            db, email="user@example.com", code="444444", expired=True
+        )
+        res = await client.post(
+            "/api/auth/email/validate",
+            json={"email": "user@example.com", "code": "444444"},
+        )
+        assert res.status_code == 400
+
+    async def test_already_verified_code_returns_400(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        await create_verification(
+            db, email="user@example.com", code="555555", is_verified=True
+        )
+        res = await client.post(
+            "/api/auth/email/validate",
+            json={"email": "user@example.com", "code": "555555"},
+        )
+        assert res.status_code == 400
