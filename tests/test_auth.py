@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import create_refresh_token, verify_password
 from app.models.email_verification import EmailVerification
 from app.models.user import User
-from tests.conftest import create_user, create_verification
+from tests.conftest import auth_headers, create_user, create_verification
 
 
 @pytest.mark.asyncio
@@ -241,3 +241,21 @@ class TestRefreshToken:
         client.cookies.set("refresh_token", "this.is.invalid")
         res = await client.get("/api/auth/token")
         assert res.status_code == 401
+
+
+@pytest.mark.asyncio
+class TestLogout:
+    async def test_clears_refresh_cookie(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        user = await create_user(db)
+        client.cookies.set("refresh_token", "some_token")
+        res = await client.delete(
+            "/api/auth/user/session", headers=auth_headers(user.id)
+        )
+        assert res.status_code == 200
+        assert res.cookies.get("refresh_token") in ("", None)
+
+    async def test_without_auth_returns_4xx(self, client: AsyncClient) -> None:
+        res = await client.delete("/api/auth/user/session")
+        assert res.status_code in (401, 403)
