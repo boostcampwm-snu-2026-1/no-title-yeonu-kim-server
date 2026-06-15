@@ -18,6 +18,8 @@ if config.config_file_name is not None:
 
 from app.core.config import settings
 from app.db.base import Base
+import app.models.email_verification  # noqa: F401
+import app.models.user  # noqa: F401
 
 target_metadata = Base.metadata
 
