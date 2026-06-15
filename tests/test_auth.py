@@ -163,3 +163,57 @@ class TestRegister:
         await create_user(db, email="alice@example.com")
         res = await client.post("/api/auth/user", json=_REGISTER_BODY)
         assert res.status_code == 409
+
+
+@pytest.mark.asyncio
+class TestLogin:
+    async def test_valid_credentials_returns_200(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        await create_user(db, email="bob@example.com", password="pass", role="OWNER")
+        res = await client.post(
+            "/api/auth/user/session",
+            json={"role": "OWNER", "mail": "bob@example.com", "password": "pass"},
+        )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["status"] == 200
+        assert "token" in body["data"]
+        assert body["data"]["user"]["userRole"] == "OWNER"
+
+    async def test_sets_refresh_token_cookie(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        await create_user(db, email="bob@example.com", password="pass", role="OWNER")
+        res = await client.post(
+            "/api/auth/user/session",
+            json={"role": "OWNER", "mail": "bob@example.com", "password": "pass"},
+        )
+        assert "refresh_token" in res.cookies
+
+    async def test_wrong_password_returns_401(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        await create_user(db, email="bob@example.com", password="pass")
+        res = await client.post(
+            "/api/auth/user/session",
+            json={"role": "REVIEWER", "mail": "bob@example.com", "password": "wrong"},
+        )
+        assert res.status_code == 401
+
+    async def test_role_mismatch_returns_400(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        await create_user(db, email="bob@example.com", password="pass", role="OWNER")
+        res = await client.post(
+            "/api/auth/user/session",
+            json={"role": "REVIEWER", "mail": "bob@example.com", "password": "pass"},
+        )
+        assert res.status_code == 400
+
+    async def test_unknown_email_returns_401(self, client: AsyncClient) -> None:
+        res = await client.post(
+            "/api/auth/user/session",
+            json={"role": "REVIEWER", "mail": "nobody@example.com", "password": "x"},
+        )
+        assert res.status_code == 401
