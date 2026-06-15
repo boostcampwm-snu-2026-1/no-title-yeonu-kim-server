@@ -160,8 +160,12 @@ class TestGetMyApplications:
         )
         db.add(submission)
         await db.flush()
-        db.add(ReviewImage(submission_id=submission.id, image_key="reviews/a.jpg", order=0))
-        db.add(ReviewImage(submission_id=submission.id, image_key="reviews/b.jpg", order=1))
+        db.add(
+            ReviewImage(submission_id=submission.id, image_key="reviews/a.jpg", order=0)
+        )
+        db.add(
+            ReviewImage(submission_id=submission.id, image_key="reviews/b.jpg", order=1)
+        )
         await db.commit()
 
         res = await client.get("/api/application", headers=auth_headers(reviewer.id))
@@ -236,7 +240,9 @@ class TestCancelApplication:
         owner = await create_user(db, email="owner@example.com", role="OWNER")
         store = await create_store(db, owner.id)
         event = await create_event(db, store.id)
-        application = await create_application(db, event.id, reviewer.id, status="APPROVED")
+        application = await create_application(
+            db, event.id, reviewer.id, status="APPROVED"
+        )
         res = await client.delete(
             f"/api/application/{application.id}",
             headers=auth_headers(reviewer.id),
@@ -384,5 +390,7 @@ class TestSubmitReview:
         event = await create_event(db, store.id)
         application = await create_application(db, event.id, reviewer.id)
         body = {"imageList": [], "comment": "X"}
-        res = await client.post(f"/api/application/{application.id}/submission", json=body)
+        res = await client.post(
+            f"/api/application/{application.id}/submission", json=body
+        )
         assert res.status_code in (401, 403)

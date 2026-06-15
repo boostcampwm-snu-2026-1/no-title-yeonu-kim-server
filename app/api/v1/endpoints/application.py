@@ -46,9 +46,7 @@ async def get_my_applications(
     )
 
 
-@router.delete(
-    "/application/{applicationId}", response_model=SuccessResponse[None]
-)
+@router.delete("/application/{applicationId}", response_model=SuccessResponse[None])
 async def cancel_application(
     applicationId: str,
     db: AsyncSession = Depends(get_db),

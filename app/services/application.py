@@ -48,20 +48,18 @@ async def create_application(
     db.add(application)
     try:
         await db.commit()
-    except IntegrityError:
+    except IntegrityError as e:
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="이미 신청한 이벤트입니다.",
-        )
+        ) from e
 
 
 async def list_my_applications(
     db: AsyncSession, reviewer_id: str, page: int, size: int
 ) -> tuple[list[ApplicationItem], int]:
-    base_query = select(Application).where(
-        Application.reviewer_id == UUID(reviewer_id)
-    )
+    base_query = select(Application).where(Application.reviewer_id == UUID(reviewer_id))
     _total = await db.scalar(select(func.count()).select_from(base_query.subquery()))
     total = _total if _total is not None else 0
 
@@ -70,9 +68,7 @@ async def list_my_applications(
     result: list[ApplicationItem] = []
     for app in apps:
         submission = await db.scalar(
-            select(ReviewSubmission).where(
-                ReviewSubmission.application_id == app.id
-            )
+            select(ReviewSubmission).where(ReviewSubmission.application_id == app.id)
         )
         submission_detail = None
         if submission:
