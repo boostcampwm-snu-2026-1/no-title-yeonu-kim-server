@@ -1,4 +1,4 @@
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
@@ -51,7 +51,7 @@ class TestCreateEvent:
         res = await client.post("/api/event", json=body, headers=auth_headers(owner.id))
         assert res.status_code == 200
         event_id = res.json()["data"]["id"]
-        event = await db.scalar(select(Event).where(Event.id == event_id))
+        event = await db.scalar(select(Event).where(Event.id == UUID(event_id)))
         assert event is not None
         assert event.title == "DB Test Event"
         assert event.store_id == store.id
