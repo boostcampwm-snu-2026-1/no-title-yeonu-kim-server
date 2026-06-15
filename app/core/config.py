@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     s3_public_bucket: str = ""
     s3_presigned_expiry: int = 3600
 
+    anthropic_api_key: str = ""
+
     model_config = {"env_file": ".env"}
 
 

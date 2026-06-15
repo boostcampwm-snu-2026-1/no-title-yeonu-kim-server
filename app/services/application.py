@@ -1,10 +1,18 @@
+import asyncio
+import base64
+from typing import Literal, cast
 from uuid import UUID
 
+import anthropic
+import boto3  # type: ignore[import-untyped]
+from botocore.exceptions import ClientError  # type: ignore[import-untyped]
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
+from app.core.exceptions import ImageConditionNotMetError
 from app.models.application import Application
 from app.models.event import Event
 from app.models.review_image import ReviewImage
@@ -15,6 +23,76 @@ from app.schemas.application import (
     ReviewSubmissionDetail,
     ReviewSubmissionReq,
 )
+
+_MediaType = Literal["image/jpeg", "image/png", "image/gif", "image/webp"]
+_SUPPORTED_MEDIA_TYPES: frozenset[str] = frozenset(
+    {"image/jpeg", "image/png", "image/gif", "image/webp"}
+)
+
+
+def _to_media_type(content_type: str) -> _MediaType:
+    if content_type in _SUPPORTED_MEDIA_TYPES:
+        return cast(_MediaType, content_type)
+    return "image/jpeg"
+
+
+async def _download_image(image_key: str) -> tuple[bytes, str]:
+    def _sync() -> tuple[bytes, str]:
+        s3 = boto3.client(
+            "s3",
+            aws_access_key_id=settings.aws_access_key_id,
+            aws_secret_access_key=settings.aws_secret_access_key,
+            region_name=settings.aws_region,
+        )
+        try:
+            resp = s3.get_object(Bucket=settings.s3_private_bucket, Key=image_key)
+        except ClientError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="이미지를 불러올 수 없습니다.",
+            ) from e
+        return resp["Body"].read(), str(resp.get("ContentType", "image/jpeg"))
+
+    return await asyncio.get_running_loop().run_in_executor(None, _sync)
+
+
+async def _validate_image_condition(image_key: str, condition: str) -> None:
+    image_bytes, content_type = await _download_image(image_key)
+    media_type = _to_media_type(content_type)
+    encoded = base64.standard_b64encode(image_bytes).decode("utf-8")
+
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    response = await client.messages.create(
+        model="claude-opus-4-8",
+        max_tokens=128,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": encoded,
+                        },
+                    },
+                    {
+                        "type": "text",
+                        "text": (
+                            f"이미지가 아래 조건을 충족하는지 판단하세요.\n"
+                            f"조건: {condition}\n\n"
+                            "충족하면 'PASS', 충족하지 않으면 'FAIL'로만 응답하세요."
+                        ),
+                    },
+                ],
+            }
+        ],
+    )
+
+    block = response.content[0]
+    if not isinstance(block, anthropic.types.TextBlock) or "FAIL" in block.text.upper():
+        raise ImageConditionNotMetError()
 
 
 async def create_application(
@@ -38,6 +116,8 @@ async def create_application(
             status_code=status.HTTP_409_CONFLICT,
             detail="이미 신청한 이벤트입니다.",
         )
+
+    await _validate_image_condition(data.imageKey, event.condition)
 
     application = Application(
         event_id=UUID(data.eventId),
