@@ -28,6 +28,16 @@ async def list_owner_events(db: AsyncSession, owner_id: str) -> list[Event]:
     return list(result.all())
 
 
+async def get_event_or_404(db: AsyncSession, event_id: str) -> Event:
+    event = await db.scalar(select(Event).where(Event.id == UUID(event_id)))
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="이벤트를 찾을 수 없습니다.",
+        )
+    return event
+
+
 async def create_event(db: AsyncSession, owner_id: str, data: EventCreateReq) -> Event:
     store = await _get_store_or_404(db, data.storeId)
     if str(store.owner_id) != owner_id:

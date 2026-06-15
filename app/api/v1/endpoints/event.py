@@ -32,6 +32,23 @@ async def get_owner_events(
     )
 
 
+@router.get("/{eventId}", response_model=SuccessResponse[EventResp])
+async def get_event(
+    eventId: str,
+    db: AsyncSession = Depends(get_db),
+) -> SuccessResponse[EventResp]:
+    event = await event_service.get_event_or_404(db, eventId)
+    return SuccessResponse(
+        data=EventResp(
+            id=str(event.id),
+            title=event.title,
+            condition=event.condition,
+            reward=event.reward,
+            isActive=event.is_active,
+        )
+    )
+
+
 @router.post("", response_model=SuccessResponse[EventResp])
 async def create_event(
     body: EventCreateReq,
