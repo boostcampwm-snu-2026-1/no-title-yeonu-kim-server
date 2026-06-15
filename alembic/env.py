@@ -21,6 +21,7 @@ from app.db.base import Base
 import app.models.application  # noqa: F401
 import app.models.email_verification  # noqa: F401
 import app.models.event  # noqa: F401
+import app.models.review_image  # noqa: F401
 import app.models.review_submission  # noqa: F401
 import app.models.store  # noqa: F401
 import app.models.user  # noqa: F401
