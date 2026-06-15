@@ -3,11 +3,18 @@ import string
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.email import send_temp_password_email, send_verification_email
+from app.core.exceptions import (
+    AUTH_001,
+    AUTH_002,
+    USER_001,
+    USER_002,
+    USER_006,
+    AppException,
+)
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -42,10 +49,7 @@ async def validate_verification_code(db: AsyncSession, email: str, code: str) ->
         .order_by(EmailVerification.created_at.desc())
     )
     if not record:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="코드가 일치하지 않거나 만료되었습니다.",
-        )
+        raise AppException(USER_006)
     token = create_verification_token(email)
     record.is_verified = True
     record.verification_token = token
@@ -56,10 +60,7 @@ async def validate_verification_code(db: AsyncSession, email: str, code: str) ->
 async def register(db: AsyncSession, data: RegisterReq) -> tuple[User, str, str]:
     exists = await db.scalar(select(User).where(User.email == data.email))
     if exists:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="이미 가입된 이메일입니다.",
-        )
+        raise AppException(USER_001)
     user = User(
         username=data.username,
         email=data.email,
@@ -77,25 +78,16 @@ def refresh_access_token(refresh_token: str) -> str:
     try:
         user_id = decode_token(refresh_token)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="유효하지 않거나 만료된 리프레시 토큰입니다.",
-        ) from e
+        raise AppException(AUTH_001) from e
     return create_access_token(user_id)
 
 
 async def login(db: AsyncSession, data: LoginReq) -> tuple[User, str, str]:
     user = await db.scalar(select(User).where(User.email == data.mail))
     if not user or not verify_password(data.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="이메일 또는 비밀번호가 올바르지 않습니다.",
-        )
+        raise AppException(AUTH_002)
     if user.role != data.role:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="계정 역할이 일치하지 않습니다.",
-        )
+        raise AppException(AUTH_002)
     user_id = str(user.id)
     return user, create_access_token(user_id), create_refresh_token(user_id)
 
@@ -105,10 +97,7 @@ async def change_password(
 ) -> None:
     user = await db.scalar(select(User).where(User.id == UUID(user_id)))
     if not user or not verify_password(old_password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="현재 비밀번호가 올바르지 않습니다.",
-        )
+        raise AppException(AUTH_002)
     user.password_hash = get_password_hash(new_password)
     await db.commit()
 
@@ -116,10 +105,7 @@ async def change_password(
 async def reset_password(db: AsyncSession, data: ResetPasswordReq) -> None:
     user = await db.scalar(select(User).where(User.email == data.email))
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="가입되지 않은 이메일입니다.",
-        )
+        raise AppException(USER_002)
     temp_password = "".join(random.choices(string.ascii_letters + string.digits, k=12))
     user.password_hash = get_password_hash(temp_password)
     await db.commit()
@@ -129,7 +115,4 @@ async def reset_password(db: AsyncSession, data: ResetPasswordReq) -> None:
 async def check_email_duplicate(db: AsyncSession, email: str) -> None:
     exists = await db.scalar(select(User).where(User.email == email))
     if exists:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="이미 가입된 이메일입니다.",
-        )
+        raise AppException(USER_001)

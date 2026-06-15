@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import GEN_003_AMOUNT, AppException
 from app.models.deposit import Deposit
 from app.schemas.deposit import DepositReq, DepositResp
 
@@ -10,6 +11,9 @@ from app.schemas.deposit import DepositReq, DepositResp
 async def create_deposit(
     db: AsyncSession, user_id: str, data: DepositReq
 ) -> DepositResp:
+    if data.amount <= 0:
+        raise AppException(GEN_003_AMOUNT)
+
     current_balance = await db.scalar(
         select(func.coalesce(func.max(Deposit.balance), 0)).where(
             Deposit.user_id == UUID(user_id)

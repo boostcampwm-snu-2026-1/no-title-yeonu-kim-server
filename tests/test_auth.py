@@ -201,7 +201,7 @@ class TestLogin:
         )
         assert res.status_code == 401
 
-    async def test_role_mismatch_returns_400(
+    async def test_role_mismatch_returns_401(
         self, client: AsyncClient, db: AsyncSession
     ) -> None:
         await create_user(db, email="bob@example.com", password="pass", role="OWNER")
@@ -209,7 +209,7 @@ class TestLogin:
             "/api/auth/user/session",
             json={"role": "REVIEWER", "mail": "bob@example.com", "password": "pass"},
         )
-        assert res.status_code == 400
+        assert res.status_code == 401
 
     async def test_unknown_email_returns_401(self, client: AsyncClient) -> None:
         res = await client.post(
@@ -278,7 +278,7 @@ class TestChangePassword:
         assert not verify_password("old_pass", user.password_hash)
         assert verify_password("new_pass", user.password_hash)
 
-    async def test_wrong_old_password_returns_400(
+    async def test_wrong_old_password_returns_401(
         self, client: AsyncClient, db: AsyncSession
     ) -> None:
         user = await create_user(db, password="correct")
@@ -287,7 +287,7 @@ class TestChangePassword:
             json={"oldPassword": "wrong", "newPassword": "new_pass"},
             headers=auth_headers(user.id),
         )
-        assert res.status_code == 400
+        assert res.status_code == 401
 
     async def test_without_auth_returns_4xx(self, client: AsyncClient) -> None:
         res = await client.patch(

@@ -39,7 +39,7 @@ class TestCreateApplication:
         event = await create_event(db, store.id)
         body = {
             "eventId": str(event.id),
-            "walletAddress": "0xABCDEF1234567890",
+            "walletAddress": "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12",
             "imageKey": "reviews/apply.jpg",
         }
         res = await client.post(
@@ -57,7 +57,7 @@ class TestCreateApplication:
         event = await create_event(db, store.id)
         body = {
             "eventId": str(event.id),
-            "walletAddress": "0xABC",
+            "walletAddress": "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12",
             "imageKey": "reviews/img.jpg",
         }
         await client.post(
@@ -70,7 +70,7 @@ class TestCreateApplication:
             )
         )
         assert saved is not None
-        assert saved.wallet_address == "0xABC"
+        assert saved.wallet_address == "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12"
         assert saved.status == "PENDING"
 
     async def test_duplicate_application_returns_409(
@@ -83,7 +83,7 @@ class TestCreateApplication:
         await create_application(db, event.id, reviewer.id)
         body = {
             "eventId": str(event.id),
-            "walletAddress": "0xABC",
+            "walletAddress": "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12",
             "imageKey": "reviews/img.jpg",
         }
         res = await client.post(
@@ -97,7 +97,7 @@ class TestCreateApplication:
         reviewer = await create_user(db, role="REVIEWER")
         body = {
             "eventId": str(uuid4()),
-            "walletAddress": "0xABC",
+            "walletAddress": "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12",
             "imageKey": "reviews/img.jpg",
         }
         res = await client.post(
@@ -113,7 +113,7 @@ class TestCreateApplication:
         event = await create_event(db, store.id)
         body = {
             "eventId": str(event.id),
-            "walletAddress": "0xABC",
+            "walletAddress": "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12",
             "imageKey": "reviews/img.jpg",
         }
         res = await client.post("/api/applications", json=body)
@@ -426,7 +426,7 @@ class TestCreateApplicationImageValidation:
         event = await create_event(db, store.id, condition="음식 사진이어야 합니다.")
         body = {
             "eventId": str(event.id),
-            "walletAddress": "0xABC",
+            "walletAddress": "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12",
             "imageKey": "reviews/food.jpg",
         }
         _, mock_client = self._make_claude_mock("PASS")
@@ -454,7 +454,7 @@ class TestCreateApplicationImageValidation:
         event = await create_event(db, store.id, condition="음식 사진이어야 합니다.")
         body = {
             "eventId": str(event.id),
-            "walletAddress": "0xABC",
+            "walletAddress": "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12",
             "imageKey": "reviews/not_food.jpg",
         }
         _, mock_client = self._make_claude_mock("FAIL")
@@ -472,7 +472,7 @@ class TestCreateApplicationImageValidation:
             )
         assert res.status_code == 422
         data = res.json()["data"]
-        assert "조건" in data["message"]
+        assert data["code"] == "IMAGE_001"
 
     async def test_application_not_saved_when_condition_fails(
         self, client: AsyncClient, db: AsyncSession
@@ -483,7 +483,7 @@ class TestCreateApplicationImageValidation:
         event = await create_event(db, store.id)
         body = {
             "eventId": str(event.id),
-            "walletAddress": "0xABC",
+            "walletAddress": "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12",
             "imageKey": "reviews/bad.jpg",
         }
         _, mock_client = self._make_claude_mock("FAIL")
@@ -507,7 +507,7 @@ class TestCreateApplicationImageValidation:
     async def test_s3_download_error_returns_400(
         self, client: AsyncClient, db: AsyncSession
     ) -> None:
-        from fastapi import HTTPException
+        from app.core.exceptions import IMAGE_002, AppException
 
         reviewer = await create_user(db, role="REVIEWER")
         owner = await create_user(db, email="owner@example.com", role="OWNER")
@@ -515,15 +515,13 @@ class TestCreateApplicationImageValidation:
         event = await create_event(db, store.id)
         body = {
             "eventId": str(event.id),
-            "walletAddress": "0xABC",
+            "walletAddress": "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12",
             "imageKey": "reviews/missing.jpg",
         }
         with patch(
             "app.services.application._download_image",
             new_callable=AsyncMock,
-            side_effect=HTTPException(
-                status_code=400, detail="이미지를 불러올 수 없습니다."
-            ),
+            side_effect=AppException(IMAGE_002),
         ):
             res = await client.post(
                 "/api/applications", json=body, headers=auth_headers(reviewer.id)
