@@ -11,10 +11,11 @@ from app.core.security import (
     create_refresh_token,
     create_verification_token,
     get_password_hash,
+    verify_password,
 )
 from app.models.email_verification import EmailVerification
 from app.models.user import User
-from app.schemas.auth import RegisterReq
+from app.schemas.auth import LoginReq, RegisterReq
 
 
 async def send_verification_code(db: AsyncSession, email: str) -> None:
@@ -65,6 +66,22 @@ async def register(db: AsyncSession, data: RegisterReq) -> tuple[User, str, str]
     db.add(user)
     await db.commit()
     await db.refresh(user)
+    user_id = str(user.id)
+    return user, create_access_token(user_id), create_refresh_token(user_id)
+
+
+async def login(db: AsyncSession, data: LoginReq) -> tuple[User, str, str]:
+    user = await db.scalar(select(User).where(User.email == data.mail))
+    if not user or not verify_password(data.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="이메일 또는 비밀번호가 올바르지 않습니다.",
+        )
+    if user.role != data.role:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="계정 역할이 일치하지 않습니다.",
+        )
     user_id = str(user.id)
     return user, create_access_token(user_id), create_refresh_token(user_id)
 

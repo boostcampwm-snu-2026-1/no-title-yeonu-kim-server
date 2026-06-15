@@ -8,6 +8,7 @@ from app.schemas.auth import (
     EmailValidateReq,
     EmailValidateResp,
     EmailVerifyReq,
+    LoginReq,
     RegisterReq,
     UserInfo,
 )
@@ -51,6 +52,27 @@ async def register(
     db: AsyncSession = Depends(get_db),
 ) -> SuccessResponse[AuthResp]:
     user, access_token, refresh_token = await auth_service.register(db, body)
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        samesite="lax",
+    )
+    return SuccessResponse(
+        data=AuthResp(
+            user=UserInfo(id=str(user.id), userRole=user.role),
+            token=access_token,
+        )
+    )
+
+
+@router.post("/user/session", response_model=SuccessResponse[AuthResp])
+async def login(
+    body: LoginReq,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+) -> SuccessResponse[AuthResp]:
+    user, access_token, refresh_token = await auth_service.login(db, body)
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
