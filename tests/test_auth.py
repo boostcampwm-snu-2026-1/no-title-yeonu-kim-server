@@ -259,3 +259,39 @@ class TestLogout:
     async def test_without_auth_returns_4xx(self, client: AsyncClient) -> None:
         res = await client.delete("/api/auth/user/session")
         assert res.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+class TestChangePassword:
+    async def test_changes_password_in_db(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        user = await create_user(db, password="old_pass")
+        res = await client.patch(
+            "/api/auth/password",
+            json={"oldPassword": "old_pass", "newPassword": "new_pass"},
+            headers=auth_headers(user.id),
+        )
+        assert res.status_code == 200
+
+        await db.refresh(user)
+        assert not verify_password("old_pass", user.password_hash)
+        assert verify_password("new_pass", user.password_hash)
+
+    async def test_wrong_old_password_returns_400(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        user = await create_user(db, password="correct")
+        res = await client.patch(
+            "/api/auth/password",
+            json={"oldPassword": "wrong", "newPassword": "new_pass"},
+            headers=auth_headers(user.id),
+        )
+        assert res.status_code == 400
+
+    async def test_without_auth_returns_4xx(self, client: AsyncClient) -> None:
+        res = await client.patch(
+            "/api/auth/password",
+            json={"oldPassword": "x", "newPassword": "y"},
+        )
+        assert res.status_code in (401, 403)
