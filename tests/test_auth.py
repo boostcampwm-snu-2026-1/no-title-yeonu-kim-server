@@ -3,7 +3,9 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.security import verify_password
 from app.models.email_verification import EmailVerification
+from app.models.user import User
 from tests.conftest import create_user, create_verification
 
 
@@ -111,3 +113,53 @@ class TestEmailValidate:
             json={"email": "user@example.com", "code": "555555"},
         )
         assert res.status_code == 400
+
+
+_REGISTER_BODY = {
+    "role": "REVIEWER",
+    "username": "Alice",
+    "email": "alice@example.com",
+    "password": "secret123",
+}
+
+
+@pytest.mark.asyncio
+class TestRegister:
+    async def test_creates_user_in_db(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        res = await client.post("/api/auth/user", json=_REGISTER_BODY)
+        assert res.status_code == 200
+
+        user = await db.scalar(select(User).where(User.email == "alice@example.com"))
+        assert user is not None
+        assert user.username == "Alice"
+        assert user.role == "REVIEWER"
+
+    async def test_password_is_hashed_in_db(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        await client.post("/api/auth/user", json=_REGISTER_BODY)
+
+        user = await db.scalar(select(User).where(User.email == "alice@example.com"))
+        assert user is not None
+        assert user.password_hash != "secret123"
+        assert verify_password("secret123", user.password_hash)
+
+    async def test_returns_access_token_and_user(self, client: AsyncClient) -> None:
+        res = await client.post("/api/auth/user", json=_REGISTER_BODY)
+        body = res.json()
+        assert body["status"] == 200
+        assert "token" in body["data"]
+        assert body["data"]["user"]["userRole"] == "REVIEWER"
+
+    async def test_sets_refresh_token_cookie(self, client: AsyncClient) -> None:
+        res = await client.post("/api/auth/user", json=_REGISTER_BODY)
+        assert "refresh_token" in res.cookies
+
+    async def test_duplicate_email_returns_409(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        await create_user(db, email="alice@example.com")
+        res = await client.post("/api/auth/user", json=_REGISTER_BODY)
+        assert res.status_code == 409
