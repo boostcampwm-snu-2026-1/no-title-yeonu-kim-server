@@ -150,7 +150,7 @@ async def list_my_applications(
     _total = await db.scalar(select(func.count()).select_from(base_query.subquery()))
     total = _total if _total is not None else 0
 
-    apps = (await db.scalars(base_query.offset((page - 1) * size).limit(size))).all()
+    apps = (await db.scalars(base_query.offset(page * size).limit(size))).all()
 
     result: list[ApplicationItem] = []
     for app in apps:
