@@ -9,10 +9,14 @@ from fastapi.responses import JSONResponse
 from app.api.v1.router import router as api_router
 from app.core.config import settings
 from app.core.exceptions import AppException
+from app.db.seed import reset_and_seed
+from app.db.session import engine
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    if settings.seed_db:
+        await reset_and_seed(engine)
     yield
 
 

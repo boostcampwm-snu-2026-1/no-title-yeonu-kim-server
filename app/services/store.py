@@ -38,7 +38,7 @@ async def list_stores(
     _total = await db.scalar(select(func.count()).select_from(base_query.subquery()))
     total = _total if _total is not None else 0
 
-    stores = (await db.scalars(base_query.offset((page - 1) * size).limit(size))).all()
+    stores = (await db.scalars(base_query.offset(page * size).limit(size))).all()
 
     items: list[StoreListItem] = []
     for store in stores:
