@@ -19,6 +19,15 @@ async def _get_store_or_404(db: AsyncSession, store_id: str) -> Store:
     return store
 
 
+async def list_owner_events(db: AsyncSession, owner_id: str) -> list[Event]:
+    result = await db.scalars(
+        select(Event)
+        .join(Store, Event.store_id == Store.id)
+        .where(Store.owner_id == UUID(owner_id))
+    )
+    return list(result.all())
+
+
 async def create_event(db: AsyncSession, owner_id: str, data: EventCreateReq) -> Event:
     store = await _get_store_or_404(db, data.storeId)
     if str(store.owner_id) != owner_id:
