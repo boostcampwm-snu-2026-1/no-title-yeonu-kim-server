@@ -17,7 +17,7 @@ from app.core.security import (
 )
 from app.models.email_verification import EmailVerification
 from app.models.user import User
-from app.schemas.auth import LoginReq, RegisterReq
+from app.schemas.auth import LoginReq, RegisterReq, ResetPasswordReq
 
 
 async def send_verification_code(db: AsyncSession, email: str) -> None:
@@ -110,6 +110,19 @@ async def change_password(
         )
     user.password_hash = get_password_hash(new_password)
     await db.commit()
+
+
+async def reset_password(db: AsyncSession, data: ResetPasswordReq) -> None:
+    user = await db.scalar(select(User).where(User.email == data.email))
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="가입되지 않은 이메일입니다.",
+        )
+    temp_password = "".join(random.choices(string.ascii_letters + string.digits, k=12))
+    user.password_hash = get_password_hash(temp_password)
+    await db.commit()
+    print(f"[DEV] Temporary password for {data.email}: {temp_password}")
 
 
 async def check_email_duplicate(db: AsyncSession, email: str) -> None:

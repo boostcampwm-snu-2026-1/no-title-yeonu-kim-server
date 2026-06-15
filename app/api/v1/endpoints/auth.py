@@ -13,6 +13,7 @@ from app.schemas.auth import (
     EmailVerifyReq,
     LoginReq,
     RegisterReq,
+    ResetPasswordReq,
     UserInfo,
 )
 from app.schemas.common import SuccessResponse
@@ -118,4 +119,13 @@ async def change_password(
     user_id: str = Depends(require_login),
 ) -> SuccessResponse[None]:
     await auth_service.change_password(db, user_id, body.oldPassword, body.newPassword)
+    return SuccessResponse(data=None)
+
+
+@router.post("/password", response_model=SuccessResponse[None])
+async def reset_password(
+    body: ResetPasswordReq,
+    db: AsyncSession = Depends(get_db),
+) -> SuccessResponse[None]:
+    await auth_service.reset_password(db, body)
     return SuccessResponse(data=None)
