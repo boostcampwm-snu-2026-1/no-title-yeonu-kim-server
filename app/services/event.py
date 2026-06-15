@@ -1,10 +1,17 @@
 from uuid import UUID
 
-from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import (
+    AUTH_007,
+    DEPOSIT_001,
+    EVENT_001,
+    STORE_001,
+    AppException,
+)
 from app.models.application import Application
+from app.models.deposit import Deposit
 from app.models.event import Event
 from app.models.review_submission import ReviewSubmission
 from app.models.store import Store
@@ -15,10 +22,7 @@ from app.schemas.event import ApplicationSummary, EventCreateReq
 async def _get_store_or_404(db: AsyncSession, store_id: str) -> Store:
     store = await db.scalar(select(Store).where(Store.id == UUID(store_id)))
     if not store:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="상점을 찾을 수 없습니다.",
-        )
+        raise AppException(STORE_001)
     return store
 
 
@@ -34,10 +38,7 @@ async def list_owner_events(db: AsyncSession, owner_id: str) -> list[Event]:
 async def get_event_or_404(db: AsyncSession, event_id: str) -> Event:
     event = await db.scalar(select(Event).where(Event.id == UUID(event_id)))
     if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="이벤트를 찾을 수 없습니다.",
-        )
+        raise AppException(EVENT_001)
     return event
 
 
@@ -45,10 +46,7 @@ async def delete_event(db: AsyncSession, event_id: str, owner_id: str) -> None:
     event = await get_event_or_404(db, event_id)
     store = await db.scalar(select(Store).where(Store.id == event.store_id))
     if not store or str(store.owner_id) != owner_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="본인 소유의 이벤트가 아닙니다.",
-        )
+        raise AppException(AUTH_007)
     await db.delete(event)
     await db.commit()
 
@@ -64,10 +62,7 @@ async def list_event_applications(
     event = await get_event_or_404(db, event_id)
     store = await db.scalar(select(Store).where(Store.id == event.store_id))
     if not store or str(store.owner_id) != owner_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="본인 소유의 이벤트가 아닙니다.",
-        )
+        raise AppException(AUTH_007)
 
     base_query = select(Application).where(Application.event_id == UUID(event_id))
     if status_filter:
@@ -105,10 +100,17 @@ async def list_event_applications(
 async def create_event(db: AsyncSession, owner_id: str, data: EventCreateReq) -> Event:
     store = await _get_store_or_404(db, data.storeId)
     if str(store.owner_id) != owner_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="본인 소유의 상점이 아닙니다.",
+        raise AppException(AUTH_007)
+
+    _balance = await db.scalar(
+        select(func.coalesce(func.max(Deposit.balance), 0)).where(
+            Deposit.user_id == UUID(owner_id)
         )
+    )
+    balance = int(_balance) if _balance is not None else 0
+    if data.reward > balance:
+        raise AppException(DEPOSIT_001)
+
     event = Event(
         store_id=UUID(data.storeId),
         title=data.title,

@@ -1,9 +1,9 @@
 from uuid import UUID
 
-from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import AUTH_007, STORE_001, AppException
 from app.models.event import Event
 from app.models.store import Store
 from app.schemas.store import StoreCreateReq, StoreEventSummary, StoreListItem
@@ -12,10 +12,7 @@ from app.schemas.store import StoreCreateReq, StoreEventSummary, StoreListItem
 async def get_store_or_404(db: AsyncSession, store_id: str) -> Store:
     store = await db.scalar(select(Store).where(Store.id == UUID(store_id)))
     if not store:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="상점을 찾을 수 없습니다.",
-        )
+        raise AppException(STORE_001)
     return store
 
 
@@ -89,10 +86,7 @@ async def create_store(db: AsyncSession, owner_id: str, data: StoreCreateReq) ->
 async def delete_store(db: AsyncSession, store_id: str, user_id: str) -> None:
     store = await get_store_or_404(db, store_id)
     if str(store.owner_id) != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="본인 소유의 상점이 아닙니다.",
-        )
+        raise AppException(AUTH_007)
     await db.delete(store)
     await db.commit()
 

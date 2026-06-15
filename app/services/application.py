@@ -1,18 +1,30 @@
 import asyncio
 import base64
+import re
 from typing import Literal, cast
 from uuid import UUID
 
 import anthropic
 import boto3  # type: ignore[import-untyped]
 from botocore.exceptions import ClientError  # type: ignore[import-untyped]
-from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import ImageConditionNotMetError
+from app.core.exceptions import (
+    APPLICATION_001,
+    APPLICATION_002,
+    APPLICATION_003_APPLY,
+    APPLICATION_003_SUBMIT,
+    EVENT_001,
+    GEN_003_CLOSED,
+    GEN_003_STATUS,
+    GEN_005,
+    IMAGE_002,
+    AppException,
+    ImageConditionNotMetError,
+)
 from app.models.application import Application
 from app.models.event import Event
 from app.models.review_image import ReviewImage
@@ -28,6 +40,7 @@ _MediaType = Literal["image/jpeg", "image/png", "image/gif", "image/webp"]
 _SUPPORTED_MEDIA_TYPES: frozenset[str] = frozenset(
     {"image/jpeg", "image/png", "image/gif", "image/webp"}
 )
+_ETHEREUM_ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 
 
 def _to_media_type(content_type: str) -> _MediaType:
@@ -47,10 +60,7 @@ async def _download_image(image_key: str) -> tuple[bytes, str]:
         try:
             resp = s3.get_object(Bucket=settings.s3_private_bucket, Key=image_key)
         except ClientError as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="이미지를 불러올 수 없습니다.",
-            ) from e
+            raise AppException(IMAGE_002) from e
         return resp["Body"].read(), str(resp.get("ContentType", "image/jpeg"))
 
     return await asyncio.get_running_loop().run_in_executor(None, _sync)
@@ -98,12 +108,15 @@ async def _validate_image_condition(image_key: str, condition: str) -> None:
 async def create_application(
     db: AsyncSession, reviewer_id: str, data: ApplicationCreateReq
 ) -> None:
+    if not _ETHEREUM_ADDRESS_RE.fullmatch(data.walletAddress):
+        raise AppException(GEN_005)
+
     event = await db.scalar(select(Event).where(Event.id == UUID(data.eventId)))
     if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="이벤트를 찾을 수 없습니다.",
-        )
+        raise AppException(EVENT_001)
+
+    if not event.is_active:
+        raise AppException(GEN_003_CLOSED)
 
     existing = await db.scalar(
         select(Application).where(
@@ -112,10 +125,7 @@ async def create_application(
         )
     )
     if existing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="이미 신청한 이벤트입니다.",
-        )
+        raise AppException(APPLICATION_003_APPLY)
 
     await _validate_image_condition(data.imageKey, event.condition)
 
@@ -130,10 +140,7 @@ async def create_application(
         await db.commit()
     except IntegrityError as e:
         await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="이미 신청한 이벤트입니다.",
-        ) from e
+        raise AppException(APPLICATION_003_APPLY) from e
 
 
 async def list_my_applications(
@@ -183,20 +190,11 @@ async def cancel_application(
         select(Application).where(Application.id == UUID(application_id))
     )
     if not application:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="신청을 찾을 수 없습니다.",
-        )
+        raise AppException(APPLICATION_002)
     if str(application.reviewer_id) != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="본인의 신청이 아닙니다.",
-        )
+        raise AppException(APPLICATION_001)
     if application.status != "PENDING":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="PENDING 상태의 신청만 취소할 수 있습니다.",
-        )
+        raise AppException(GEN_003_STATUS)
     await db.delete(application)
     await db.commit()
 
@@ -208,25 +206,16 @@ async def submit_review(
         select(Application).where(Application.id == UUID(application_id))
     )
     if not application:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="신청을 찾을 수 없습니다.",
-        )
+        raise AppException(APPLICATION_002)
     if str(application.reviewer_id) != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="본인의 신청이 아닙니다.",
-        )
+        raise AppException(APPLICATION_001)
     existing = await db.scalar(
         select(ReviewSubmission).where(
             ReviewSubmission.application_id == UUID(application_id)
         )
     )
     if existing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="이미 제출된 리뷰가 있습니다.",
-        )
+        raise AppException(APPLICATION_003_SUBMIT)
 
     submission = ReviewSubmission(
         application_id=UUID(application_id),

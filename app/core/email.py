@@ -5,6 +5,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from app.core.config import settings
+from app.core.exceptions import MAIL_001, AppException
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ async def send_email(to: str, subject: str, body_html: str) -> None:
         await asyncio.to_thread(_send_via_smtp, to, subject, body_html)
     except smtplib.SMTPException as e:
         logger.error("[EMAIL] Failed to send email to %s: %s", to, e)
-        raise
+        raise AppException(MAIL_001) from e
 
 
 async def send_verification_email(to: str, code: str) -> None:
