@@ -521,7 +521,9 @@ class TestCreateApplicationImageValidation:
         with patch(
             "app.services.application._download_image",
             new_callable=AsyncMock,
-            side_effect=HTTPException(status_code=400, detail="이미지를 불러올 수 없습니다."),
+            side_effect=HTTPException(
+                status_code=400, detail="이미지를 불러올 수 없습니다."
+            ),
         ):
             res = await client.post(
                 "/api/applications", json=body, headers=auth_headers(reviewer.id)
