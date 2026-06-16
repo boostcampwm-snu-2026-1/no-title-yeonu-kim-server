@@ -14,7 +14,7 @@ class TestCheckEmail:
     async def test_available_email_returns_200(self, client: AsyncClient) -> None:
         res = await client.post("/api/auth/email", json={"email": "new@example.com"})
         assert res.status_code == 200
-        assert res.json()["status"] == 200
+        assert res.json() is None
 
     async def test_duplicate_email_returns_409(
         self, client: AsyncClient, db: AsyncSession
@@ -49,7 +49,7 @@ class TestEmailVerify:
         res = await client.post(
             "/api/auth/email/verify", json={"email": "user@example.com"}
         )
-        assert res.json() == {"status": 200, "data": None}
+        assert res.json() is None
 
 
 @pytest.mark.asyncio
@@ -64,9 +64,8 @@ class TestEmailValidate:
         )
         assert res.status_code == 200
         body = res.json()
-        assert body["status"] == 200
-        assert "verificationToken" in body["data"]
-        assert isinstance(body["data"]["verificationToken"], str)
+        assert "verificationToken" in body
+        assert isinstance(body["verificationToken"], str)
 
     async def test_valid_code_marks_verified_in_db(
         self, client: AsyncClient, db: AsyncSession
@@ -149,9 +148,8 @@ class TestRegister:
     async def test_returns_access_token_and_user(self, client: AsyncClient) -> None:
         res = await client.post("/api/auth/user", json=_REGISTER_BODY)
         body = res.json()
-        assert body["status"] == 200
-        assert "token" in body["data"]
-        assert body["data"]["user"]["userRole"] == "REVIEWER"
+        assert "token" in body
+        assert body["user"]["userRole"] == "REVIEWER"
 
     async def test_sets_refresh_token_cookie(self, client: AsyncClient) -> None:
         res = await client.post("/api/auth/user", json=_REGISTER_BODY)
@@ -177,9 +175,8 @@ class TestLogin:
         )
         assert res.status_code == 200
         body = res.json()
-        assert body["status"] == 200
-        assert "token" in body["data"]
-        assert body["data"]["user"]["userRole"] == "OWNER"
+        assert "token" in body
+        assert body["user"]["userRole"] == "OWNER"
 
     async def test_sets_refresh_token_cookie(
         self, client: AsyncClient, db: AsyncSession
@@ -230,8 +227,8 @@ class TestRefreshToken:
         res = await client.get("/api/auth/token")
         assert res.status_code == 200
         body = res.json()
-        assert "accessToken" in body["data"]
-        assert isinstance(body["data"]["accessToken"], str)
+        assert "accessToken" in body
+        assert isinstance(body["accessToken"], str)
 
     async def test_no_cookie_returns_401(self, client: AsyncClient) -> None:
         res = await client.get("/api/auth/token")
@@ -319,7 +316,7 @@ class TestResetPassword:
         res = await client.post(
             "/api/auth/password", json={"email": "reset@example.com"}
         )
-        assert res.json() == {"status": 200, "data": None}
+        assert res.json() is None
 
     async def test_unknown_email_returns_404(self, client: AsyncClient) -> None:
         res = await client.post(

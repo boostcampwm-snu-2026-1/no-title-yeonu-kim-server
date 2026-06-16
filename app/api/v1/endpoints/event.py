@@ -26,8 +26,9 @@ async def get_owner_events(
                 id=str(e.id),
                 title=e.title,
                 condition=e.condition,
-                reward=e.reward,
+                reward=e.reward / 10**18,
                 isActive=e.is_active,
+                contractAddress=e.contract_address,
             )
             for e in events
         ]
@@ -44,8 +45,9 @@ async def get_event(
         id=str(event.id),
         title=event.title,
         condition=event.condition,
-        reward=event.reward,
+        reward=event.reward / 10**18,
         isActive=event.is_active,
+        contractAddress=event.contract_address,
     )
 
 
@@ -91,6 +93,7 @@ async def create_event(
         id=str(event.id),
         title=event.title,
         condition=event.condition,
-        reward=event.reward,
+        reward=event.reward / 10**18,
         isActive=event.is_active,
+        contractAddress=event.contract_address,
     )

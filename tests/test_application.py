@@ -1,5 +1,5 @@
 from collections.abc import Generator
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 from uuid import uuid4
 
 import anthropic
@@ -20,12 +20,24 @@ from tests.conftest import (
 )
 
 
+DEPLOYED_ADDRESS = "0xDeAdBeEf00000000000000000000000000001234"
+FAKE_WALLET = "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12"
+
+
 @pytest.mark.asyncio
 class TestCreateApplication:
     @pytest.fixture(autouse=True)
     def mock_image_validation(self) -> Generator[None, None, None]:
         with patch(
             "app.services.application._validate_image_condition",
+            new_callable=AsyncMock,
+        ):
+            yield
+
+    @pytest.fixture(autouse=True)
+    def mock_payout(self) -> Generator[None, None, None]:
+        with patch(
+            "app.services.blockchain.payout_safe",
             new_callable=AsyncMock,
         ):
             yield
@@ -46,7 +58,7 @@ class TestCreateApplication:
             "/api/applications", json=body, headers=auth_headers(reviewer.id)
         )
         assert res.status_code == 200
-        assert res.json() == {"status": 200, "data": None}
+        assert res.json() is None
 
     async def test_application_saved_to_db(
         self, client: AsyncClient, db: AsyncSession
@@ -71,7 +83,7 @@ class TestCreateApplication:
         )
         assert saved is not None
         assert saved.wallet_address == "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12"
-        assert saved.status == "PENDING"
+        assert saved.status == "APPROVED"
 
     async def test_duplicate_application_returns_409(
         self, client: AsyncClient, db: AsyncSession
@@ -132,7 +144,7 @@ class TestGetMyApplications:
         await create_application(db, event.id, reviewer.id)
         res = await client.get("/api/application", headers=auth_headers(reviewer.id))
         assert res.status_code == 200
-        data = res.json()["data"]
+        data = res.json()
         assert data["totalCount"] == 1
         assert len(data["applications"]) == 1
         app_data = data["applications"][0]
@@ -154,7 +166,7 @@ class TestGetMyApplications:
         await create_application(db, event2.id, reviewer2.id)
         res = await client.get("/api/application", headers=auth_headers(reviewer1.id))
         assert res.status_code == 200
-        data = res.json()["data"]
+        data = res.json()
         assert data["totalCount"] == 1
         assert data["applications"][0]["eventId"] == str(event1.id)
 
@@ -181,7 +193,7 @@ class TestGetMyApplications:
 
         res = await client.get("/api/application", headers=auth_headers(reviewer.id))
         assert res.status_code == 200
-        app_data = res.json()["data"]["applications"][0]
+        app_data = res.json()["applications"][0]
         assert app_data["reviewSubmission"] is not None
         sub = app_data["reviewSubmission"]
         assert sub["message"] == "Great place!"
@@ -194,7 +206,7 @@ class TestGetMyApplications:
         reviewer = await create_user(db, role="REVIEWER")
         res = await client.get("/api/application", headers=auth_headers(reviewer.id))
         assert res.status_code == 200
-        data = res.json()["data"]
+        data = res.json()
         assert data["totalCount"] == 0
         assert data["applications"] == []
 
@@ -211,7 +223,7 @@ class TestGetMyApplications:
             headers=auth_headers(reviewer.id),
         )
         assert res.status_code == 200
-        data = res.json()["data"]
+        data = res.json()
         assert data["totalCount"] == 5
         assert len(data["applications"]) == 2
         assert data["currentPage"] == 1
@@ -238,7 +250,7 @@ class TestCancelApplication:
             headers=auth_headers(reviewer.id),
         )
         assert res.status_code == 200
-        assert res.json() == {"status": 200, "data": None}
+        assert res.json() is None
         deleted = await db.scalar(
             select(Application).where(Application.id == application.id)
         )
@@ -314,7 +326,7 @@ class TestSubmitReview:
             headers=auth_headers(reviewer.id),
         )
         assert res.status_code == 200
-        assert res.json() == {"status": 200, "data": None}
+        assert res.json() is None
 
     async def test_submission_saved_to_db(
         self, client: AsyncClient, db: AsyncSession
@@ -409,6 +421,14 @@ class TestSubmitReview:
 
 @pytest.mark.asyncio
 class TestCreateApplicationImageValidation:
+    @pytest.fixture(autouse=True)
+    def mock_payout(self) -> Generator[None, None, None]:
+        with patch(
+            "app.services.blockchain.payout_safe",
+            new_callable=AsyncMock,
+        ):
+            yield
+
     def _make_claude_mock(self, verdict: str) -> tuple[MagicMock, AsyncMock]:
         block = anthropic.types.TextBlock(text=verdict, type="text")
         response = MagicMock()
@@ -443,7 +463,7 @@ class TestCreateApplicationImageValidation:
                 "/api/applications", json=body, headers=auth_headers(reviewer.id)
             )
         assert res.status_code == 200
-        assert res.json() == {"status": 200, "data": None}
+        assert res.json() is None
 
     async def test_image_condition_fail_returns_422(
         self, client: AsyncClient, db: AsyncSession
@@ -527,3 +547,110 @@ class TestCreateApplicationImageValidation:
                 "/api/applications", json=body, headers=auth_headers(reviewer.id)
             )
         assert res.status_code == 400
+
+
+@pytest.mark.asyncio
+class TestApplicationBlockchainPayout:
+    """Integration tests verifying payout is triggered correctly."""
+
+    @pytest.fixture(autouse=True)
+    def mock_image_validation(self) -> Generator[None, None, None]:
+        with patch(
+            "app.services.application._validate_image_condition",
+            new_callable=AsyncMock,
+        ):
+            yield
+
+    async def test_payout_called_when_event_has_contract_address(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        reviewer = await create_user(db, role="REVIEWER")
+        owner = await create_user(db, email="owner@example.com", role="OWNER")
+        store = await create_store(db, owner.id)
+        event = await create_event(
+            db, store.id, contract_address=DEPLOYED_ADDRESS, reward=0.001
+        )
+        body = {
+            "eventId": str(event.id),
+            "walletAddress": FAKE_WALLET,
+            "imageKey": "reviews/img.jpg",
+        }
+        with patch(
+            "app.services.blockchain.payout_safe", new_callable=AsyncMock
+        ) as mock_payout:
+            res = await client.post(
+                "/api/applications", json=body, headers=auth_headers(reviewer.id)
+            )
+        assert res.status_code == 200
+        mock_payout.assert_awaited_once_with(DEPLOYED_ADDRESS, FAKE_WALLET, 1_000_000_000_000_000)
+
+    async def test_payout_not_called_when_no_contract_address(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        reviewer = await create_user(db, role="REVIEWER")
+        owner = await create_user(db, email="owner@example.com", role="OWNER")
+        store = await create_store(db, owner.id)
+        event = await create_event(db, store.id, contract_address=None)
+        body = {
+            "eventId": str(event.id),
+            "walletAddress": FAKE_WALLET,
+            "imageKey": "reviews/img.jpg",
+        }
+        with patch(
+            "app.services.blockchain.payout_safe", new_callable=AsyncMock
+        ) as mock_payout:
+            res = await client.post(
+                "/api/applications", json=body, headers=auth_headers(reviewer.id)
+            )
+        assert res.status_code == 200
+        mock_payout.assert_not_called()
+
+    async def test_application_status_is_approved_after_validation(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        reviewer = await create_user(db, role="REVIEWER")
+        owner = await create_user(db, email="owner@example.com", role="OWNER")
+        store = await create_store(db, owner.id)
+        event = await create_event(
+            db, store.id, contract_address=DEPLOYED_ADDRESS
+        )
+        body = {
+            "eventId": str(event.id),
+            "walletAddress": FAKE_WALLET,
+            "imageKey": "reviews/img.jpg",
+        }
+        with patch("app.services.blockchain.payout_safe", new_callable=AsyncMock):
+            await client.post(
+                "/api/applications", json=body, headers=auth_headers(reviewer.id)
+            )
+        saved = await db.scalar(
+            select(Application).where(Application.reviewer_id == reviewer.id)
+        )
+        assert saved is not None
+        assert saved.status == "APPROVED"
+
+    async def test_payout_failure_does_not_affect_response(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        """payout_safe swallows inner payout errors — API must still return 200."""
+        reviewer = await create_user(db, role="REVIEWER")
+        owner = await create_user(db, email="owner@example.com", role="OWNER")
+        store = await create_store(db, owner.id)
+        event = await create_event(
+            db, store.id, contract_address=DEPLOYED_ADDRESS
+        )
+        body = {
+            "eventId": str(event.id),
+            "walletAddress": FAKE_WALLET,
+            "imageKey": "reviews/img.jpg",
+        }
+        # Mock the inner payout() — payout_safe catches its exception
+        with patch(
+            "app.services.blockchain.payout",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("node unreachable"),
+        ):
+            res = await client.post(
+                "/api/applications", json=body, headers=auth_headers(reviewer.id)
+            )
+        assert res.status_code == 200

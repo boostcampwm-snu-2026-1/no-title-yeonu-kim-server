@@ -19,10 +19,10 @@ class TestListStores:
     async def test_returns_empty_list(self, client: AsyncClient) -> None:
         res = await client.get("/api/store")
         assert res.status_code == 200
-        data = res.json()["data"]
+        data = res.json()
         assert data["stores"] == []
         assert data["totalCount"] == 0
-        assert data["currentPage"] == 1
+        assert data["currentPage"] == 0
         assert data["totalPages"] == 1
         assert data["hasNext"] is False
 
@@ -32,7 +32,7 @@ class TestListStores:
         await create_store(db, owner.id, name="Store B")
         res = await client.get("/api/store")
         assert res.status_code == 200
-        data = res.json()["data"]
+        data = res.json()
         assert data["totalCount"] == 2
         names = {s["name"] for s in data["stores"]}
         assert names == {"Store A", "Store B"}
@@ -43,7 +43,7 @@ class TestListStores:
         await create_store(db, owner.id, name="Brew", category="CAFE")
         res = await client.get("/api/store", params={"category": "CAFE"})
         assert res.status_code == 200
-        data = res.json()["data"]
+        data = res.json()
         assert data["totalCount"] == 1
         assert data["stores"][0]["name"] == "Brew"
 
@@ -53,7 +53,7 @@ class TestListStores:
         await create_store(db, owner.id, name="Burger Barn")
         res = await client.get("/api/store", params={"name": "pizza"})
         assert res.status_code == 200
-        data = res.json()["data"]
+        data = res.json()
         assert data["totalCount"] == 1
         assert data["stores"][0]["name"] == "Pizza Palace"
 
@@ -63,7 +63,7 @@ class TestListStores:
             await create_store(db, owner.id, name=f"Store {i}")
         res = await client.get("/api/store", params={"page": 1, "size": 2})
         assert res.status_code == 200
-        data = res.json()["data"]
+        data = res.json()
         assert data["totalCount"] == 5
         assert len(data["stores"]) == 2
         assert data["totalPages"] == 3
@@ -72,11 +72,11 @@ class TestListStores:
     async def test_includes_events(self, client: AsyncClient, db: AsyncSession) -> None:
         owner = await create_user(db, role="OWNER")
         store = await create_store(db, owner.id)
-        await create_event(db, store.id, title="Event X", reward=1000)
-        await create_event(db, store.id, title="Event Y", reward=2000)
+        await create_event(db, store.id, title="Event X", reward=0.001)
+        await create_event(db, store.id, title="Event Y", reward=0.002)
         res = await client.get("/api/store")
         assert res.status_code == 200
-        store_data = res.json()["data"]["stores"][0]
+        store_data = res.json()["stores"][0]
         assert store_data["totalEventCount"] == 2
         assert len(store_data["events"]) == 2
         titles = {e["title"] for e in store_data["events"]}
@@ -101,7 +101,7 @@ class TestCreateStore:
         }
         res = await client.post("/api/store", json=body, headers=auth_headers(owner.id))
         assert res.status_code == 200
-        data = res.json()["data"]
+        data = res.json()
         assert data["name"] == "My Cafe"
         assert data["address"] == "Seoul, Korea"
         assert data["category"] == "CAFE"
@@ -121,7 +121,7 @@ class TestCreateStore:
         }
         res = await client.post("/api/store", json=body, headers=auth_headers(owner.id))
         assert res.status_code == 200
-        assert res.json()["data"]["thumbnailKey"] == "stores/thumb.jpg"
+        assert res.json()["thumbnailKey"] == "stores/thumb.jpg"
 
     async def test_store_saved_to_db(
         self, client: AsyncClient, db: AsyncSession
@@ -132,7 +132,7 @@ class TestCreateStore:
         assert res.status_code == 200
         from uuid import UUID
 
-        store_id = UUID(res.json()["data"]["id"])
+        store_id = UUID(res.json()["id"])
         store = await db.scalar(select(Store).where(Store.id == store_id))
         assert store is not None
         assert store.name == "DB Store"
@@ -153,7 +153,7 @@ class TestGetStore:
         store = await create_store(db, owner.id, name="Detail Store", address="Seoul")
         res = await client.get(f"/api/store/{store.id}")
         assert res.status_code == 200
-        data = res.json()["data"]
+        data = res.json()
         assert data["id"] == str(store.id)
         assert data["name"] == "Detail Store"
         assert data["address"] == "Seoul"
@@ -182,7 +182,7 @@ class TestDeleteStore:
             f"/api/store/{store.id}", headers=auth_headers(owner.id)
         )
         assert res.status_code == 200
-        assert res.json() == {"status": 200, "data": None}
+        assert res.json() is None
         deleted = await db.scalar(select(Store).where(Store.id == store.id))
         assert deleted is None
 
@@ -226,7 +226,7 @@ class TestGetStoreEvents:
         await create_event(db, store.id, title="Event B")
         res = await client.get(f"/api/store/{store.id}/events")
         assert res.status_code == 200
-        data = res.json()["data"]
+        data = res.json()
         assert "events" in data
         assert len(data["events"]) == 2
         titles = {e["title"] for e in data["events"]}
@@ -235,13 +235,13 @@ class TestGetStoreEvents:
     async def test_event_fields(self, client: AsyncClient, db: AsyncSession) -> None:
         owner = await create_user(db, role="OWNER")
         store = await create_store(db, owner.id)
-        await create_event(db, store.id, title="Check Fields", reward=9000)
+        await create_event(db, store.id, title="Check Fields", reward=0.009)
         res = await client.get(f"/api/store/{store.id}/events")
         assert res.status_code == 200
-        event = res.json()["data"]["events"][0]
+        event = res.json()["events"][0]
         assert "id" in event
         assert event["title"] == "Check Fields"
-        assert event["reward"] == 9000
+        assert event["reward"] == pytest.approx(0.009)
         assert event["isActive"] is True
         assert "condition" in event
 
@@ -252,7 +252,7 @@ class TestGetStoreEvents:
         store = await create_store(db, owner.id)
         res = await client.get(f"/api/store/{store.id}/events")
         assert res.status_code == 200
-        assert res.json()["data"]["events"] == []
+        assert res.json()["events"] == []
 
     async def test_store_not_found_returns_404(self, client: AsyncClient) -> None:
         res = await client.get(f"/api/store/{uuid4()}/events")

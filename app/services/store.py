@@ -56,7 +56,7 @@ async def list_stores(
                         id=str(e.id),
                         title=e.title,
                         condition=e.condition,
-                        reward=e.reward,
+                        reward=e.reward / 10**18,
                         isActive=e.is_active,
                     )
                     for e in events
@@ -99,7 +99,7 @@ async def list_store_events(db: AsyncSession, store_id: str) -> list[StoreEventS
             id=str(e.id),
             title=e.title,
             condition=e.condition,
-            reward=e.reward,
+            reward=e.reward / 10**18,
             isActive=e.is_active,
         )
         for e in events
