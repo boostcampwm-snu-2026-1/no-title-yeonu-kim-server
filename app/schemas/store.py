@@ -30,7 +30,7 @@ class StoreEventSummary(BaseModel):
     id: str
     title: str
     condition: str
-    reward: int
+    reward: float  # ETH
     isActive: bool
 
 

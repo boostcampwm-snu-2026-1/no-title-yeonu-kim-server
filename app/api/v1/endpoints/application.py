@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_login
@@ -16,10 +16,13 @@ router = APIRouter(tags=["Application"])
 @router.post("/applications", response_model=None)
 async def create_application(
     body: ApplicationCreateReq,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     reviewer_id: str = Depends(require_login),
 ) -> None:
-    await application_service.create_application(db, reviewer_id, body)
+    await application_service.create_application(
+        db, reviewer_id, body, background_tasks
+    )
 
 
 @router.get("/application", response_model=ApplicationListResp)

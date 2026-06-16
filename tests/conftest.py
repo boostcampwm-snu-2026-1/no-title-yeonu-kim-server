@@ -129,9 +129,16 @@ async def create_event(
     *,
     title: str = "Test Event",
     condition: str = "Post a photo review",
-    reward: int = 5000,
+    reward: float = 0.005,  # ETH; stored as Wei internally
+    contract_address: str | None = None,
 ) -> Event:
-    event = Event(title=title, condition=condition, reward=reward, store_id=store_id)
+    event = Event(
+        title=title,
+        condition=condition,
+        reward=int(reward * 10**18),
+        store_id=store_id,
+        contract_address=contract_address,
+    )
     db.add(event)
     await db.commit()
     await db.refresh(event)

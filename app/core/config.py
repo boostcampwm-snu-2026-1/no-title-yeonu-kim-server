@@ -22,6 +22,10 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str = ""
 
+    blockchain_rpc_url: str = ""
+    server_private_key: str = ""
+    contract_artifact_path: str = "out/ReviewReward.sol/ReviewReward.json"
+
     model_config = {"env_file": ".env"}
 
 

@@ -1,3 +1,5 @@
+from collections.abc import Generator
+from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -16,9 +18,20 @@ from tests.conftest import (
     create_user,
 )
 
+DEPLOYED_ADDRESS = "0xDeAdBeEf00000000000000000000000000001234"
+
 
 @pytest.mark.asyncio
 class TestCreateEvent:
+    @pytest.fixture(autouse=True)
+    def mock_deploy(self) -> Generator[None, None, None]:
+        with patch(
+            "app.services.event.blockchain_service.deploy_contract",
+            new_callable=AsyncMock,
+            return_value=DEPLOYED_ADDRESS,
+        ):
+            yield
+
     async def test_owner_creates_event_returns_200(
         self, client: AsyncClient, db: AsyncSession
     ) -> None:
@@ -29,15 +42,16 @@ class TestCreateEvent:
             "storeId": str(store.id),
             "title": "Summer Promo",
             "condition": "Post a photo",
-            "reward": 5000,
+            "reward": 0.01,
         }
         res = await client.post("/api/event", json=body, headers=auth_headers(owner.id))
         assert res.status_code == 200
-        data = res.json()["data"]
+        data = res.json()
         assert data["title"] == "Summer Promo"
-        assert data["reward"] == 5000
+        assert data["reward"] == pytest.approx(0.01)
         assert data["isActive"] is True
         assert "id" in data
+        assert data["contractAddress"] == DEPLOYED_ADDRESS
 
     async def test_event_saved_to_db(
         self, client: AsyncClient, db: AsyncSession
@@ -49,22 +63,28 @@ class TestCreateEvent:
             "storeId": str(store.id),
             "title": "DB Test Event",
             "condition": "Leave a review",
-            "reward": 3000,
+            "reward": 0.003,
         }
         res = await client.post("/api/event", json=body, headers=auth_headers(owner.id))
         assert res.status_code == 200
-        event_id = res.json()["data"]["id"]
+        event_id = res.json()["id"]
         event = await db.scalar(select(Event).where(Event.id == UUID(event_id)))
         assert event is not None
         assert event.title == "DB Test Event"
         assert event.store_id == store.id
+        assert event.contract_address == DEPLOYED_ADDRESS
 
     async def test_no_auth_returns_4xx(
         self, client: AsyncClient, db: AsyncSession
     ) -> None:
         owner = await create_user(db, role="OWNER")
         store = await create_store(db, owner.id)
-        body = {"storeId": str(store.id), "title": "x", "condition": "y", "reward": 100}
+        body = {
+            "storeId": str(store.id),
+            "title": "x",
+            "condition": "y",
+            "reward": 0.001,
+        }
         res = await client.post("/api/event", json=body)
         assert res.status_code in (401, 403)
 
@@ -74,7 +94,12 @@ class TestCreateEvent:
         owner = await create_user(db, email="o1@example.com", role="OWNER")
         other = await create_user(db, email="o2@example.com", role="OWNER")
         store = await create_store(db, other.id)
-        body = {"storeId": str(store.id), "title": "x", "condition": "y", "reward": 100}
+        body = {
+            "storeId": str(store.id),
+            "title": "x",
+            "condition": "y",
+            "reward": 0.001,
+        }
         res = await client.post("/api/event", json=body, headers=auth_headers(owner.id))
         assert res.status_code == 403
 
@@ -86,7 +111,7 @@ class TestCreateEvent:
             "storeId": str(uuid4()),
             "title": "x",
             "condition": "y",
-            "reward": 100,
+            "reward": 0.001,
         }
         res = await client.post("/api/event", json=body, headers=auth_headers(owner.id))
         assert res.status_code == 404
@@ -103,7 +128,7 @@ class TestGetOwnerEvents:
         await create_event(db, store.id, title="Event B")
         res = await client.get("/api/event/owner", headers=auth_headers(owner.id))
         assert res.status_code == 200
-        data = res.json()["data"]
+        data = res.json()
         assert "events" in data
         assert len(data["events"]) == 2
         titles = {e["title"] for e in data["events"]}
@@ -120,7 +145,7 @@ class TestGetOwnerEvents:
         await create_event(db, other_store.id, title="Other Event")
         res = await client.get("/api/event/owner", headers=auth_headers(owner.id))
         assert res.status_code == 200
-        data = res.json()["data"]["events"]
+        data = res.json()["events"]
         assert len(data) == 1
         assert data[0]["title"] == "My Event"
 
@@ -130,7 +155,7 @@ class TestGetOwnerEvents:
         owner = await create_user(db, role="OWNER")
         res = await client.get("/api/event/owner", headers=auth_headers(owner.id))
         assert res.status_code == 200
-        assert res.json()["data"]["events"] == []
+        assert res.json()["events"] == []
 
     async def test_no_auth_returns_4xx(self, client: AsyncClient) -> None:
         res = await client.get("/api/event/owner")
@@ -144,13 +169,13 @@ class TestGetEvent:
     ) -> None:
         owner = await create_user(db, role="OWNER")
         store = await create_store(db, owner.id)
-        event = await create_event(db, store.id, title="Detail Event", reward=2000)
+        event = await create_event(db, store.id, title="Detail Event", reward=0.002)
         res = await client.get(f"/api/event/{event.id}")
         assert res.status_code == 200
-        data = res.json()["data"]
+        data = res.json()
         assert data["id"] == str(event.id)
         assert data["title"] == "Detail Event"
-        assert data["reward"] == 2000
+        assert data["reward"] == pytest.approx(0.002)
         assert "isActive" in data
 
     async def test_no_auth_required(
@@ -179,7 +204,7 @@ class TestDeleteEvent:
             f"/api/event/{event.id}", headers=auth_headers(owner.id)
         )
         assert res.status_code == 200
-        assert res.json() == {"status": 200, "data": None}
+        assert res.json() is None
         deleted = await db.scalar(select(Event).where(Event.id == event.id))
         assert deleted is None
 
@@ -231,7 +256,7 @@ class TestGetEventApplications:
             headers=auth_headers(owner.id),
         )
         assert res.status_code == 200
-        data = res.json()["data"]
+        data = res.json()
         assert data["totalCount"] == 1
         assert len(data["applications"]) == 1
         app_data = data["applications"][0]
@@ -255,7 +280,7 @@ class TestGetEventApplications:
             headers=auth_headers(owner.id),
         )
         assert res.status_code == 200
-        assert res.json()["data"]["applications"][0]["hasSubmission"] is True
+        assert res.json()["applications"][0]["hasSubmission"] is True
 
     async def test_status_filter(self, client: AsyncClient, db: AsyncSession) -> None:
         owner = await create_user(db, email="owner@example.com", role="OWNER")
@@ -271,7 +296,7 @@ class TestGetEventApplications:
             headers=auth_headers(owner.id),
         )
         assert res.status_code == 200
-        data = res.json()["data"]
+        data = res.json()
         assert data["totalCount"] == 1
         assert data["applications"][0]["status"] == "PENDING"
 
@@ -288,7 +313,7 @@ class TestGetEventApplications:
             headers=auth_headers(owner.id),
         )
         assert res.status_code == 200
-        data = res.json()["data"]
+        data = res.json()
         assert data["totalCount"] == 5
         assert len(data["applications"]) == 2
         assert data["currentPage"] == 1

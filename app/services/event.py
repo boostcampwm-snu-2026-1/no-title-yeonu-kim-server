@@ -5,18 +5,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
     AUTH_007,
-    DEPOSIT_001,
     EVENT_001,
     STORE_001,
     AppException,
 )
 from app.models.application import Application
-from app.models.deposit import Deposit
 from app.models.event import Event
 from app.models.review_submission import ReviewSubmission
 from app.models.store import Store
 from app.models.user import User
 from app.schemas.event import ApplicationSummary, EventCreateReq
+from app.services import blockchain as blockchain_service
 
 
 async def _get_store_or_404(db: AsyncSession, store_id: str) -> Store:
@@ -102,20 +101,14 @@ async def create_event(db: AsyncSession, owner_id: str, data: EventCreateReq) ->
     if str(store.owner_id) != owner_id:
         raise AppException(AUTH_007)
 
-    _balance = await db.scalar(
-        select(func.coalesce(func.max(Deposit.balance), 0)).where(
-            Deposit.user_id == UUID(owner_id)
-        )
-    )
-    balance = int(_balance) if _balance is not None else 0
-    if data.reward > balance:
-        raise AppException(DEPOSIT_001)
+    contract_address = await blockchain_service.deploy_contract()
 
     event = Event(
         store_id=UUID(data.storeId),
         title=data.title,
         condition=data.condition,
-        reward=data.reward,
+        reward=int(data.reward * 10**18),  # ETH → Wei
+        contract_address=contract_address,
     )
     db.add(event)
     await db.commit()

@@ -5,15 +5,16 @@ class EventCreateReq(BaseModel):
     storeId: str
     title: str
     condition: str
-    reward: int
+    reward: float  # ETH
 
 
 class EventResp(BaseModel):
     id: str
     title: str
     condition: str
-    reward: int
+    reward: float  # ETH
     isActive: bool
+    contractAddress: str | None = None
 
 
 class EventListResp(BaseModel):

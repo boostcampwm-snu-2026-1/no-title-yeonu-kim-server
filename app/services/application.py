@@ -8,6 +8,7 @@ from uuid import UUID
 import anthropic
 import boto3  # type: ignore[import-untyped]
 from botocore.exceptions import ClientError  # type: ignore[import-untyped]
+from fastapi import BackgroundTasks
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,6 +37,9 @@ from app.schemas.application import (
     ReviewSubmissionDetail,
     ReviewSubmissionReq,
 )
+from app.services import blockchain as blockchain_service
+
+logger = logging.getLogger(__name__)
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +119,10 @@ async def _validate_image_condition(image_key: str, condition: str) -> None:
 
 
 async def create_application(
-    db: AsyncSession, reviewer_id: str, data: ApplicationCreateReq
+    db: AsyncSession,
+    reviewer_id: str,
+    data: ApplicationCreateReq,
+    background_tasks: BackgroundTasks,
 ) -> None:
     if not _ETHEREUM_ADDRESS_RE.fullmatch(data.walletAddress):
         raise AppException(GEN_005)
@@ -143,6 +150,7 @@ async def create_application(
         reviewer_id=UUID(reviewer_id),
         wallet_address=data.walletAddress,
         image_key=data.imageKey,
+        status="APPROVED",
     )
     db.add(application)
     try:
@@ -150,6 +158,14 @@ async def create_application(
     except IntegrityError as e:
         await db.rollback()
         raise AppException(APPLICATION_003_APPLY) from e
+
+    if event.contract_address:
+        background_tasks.add_task(
+            blockchain_service.payout_safe,
+            event.contract_address,
+            data.walletAddress,
+            event.reward,
+        )
 
 
 async def list_my_applications(

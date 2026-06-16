@@ -19,7 +19,7 @@ class TestDeposit:
             headers=auth_headers(user.id),
         )
         assert res.status_code == 200
-        data = res.json()["data"]
+        data = res.json()
         assert data["balance"] == 5000
         assert "depositedAt" in data
 
@@ -38,7 +38,7 @@ class TestDeposit:
             headers=auth_headers(user.id),
         )
         assert res.status_code == 200
-        assert res.json()["data"]["balance"] == 5000
+        assert res.json()["balance"] == 5000
 
     async def test_deposit_saved_to_db(
         self, client: AsyncClient, db: AsyncSession
