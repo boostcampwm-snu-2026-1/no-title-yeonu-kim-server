@@ -227,7 +227,13 @@ class TestPayoutSafe:
         ):
             mock_cls.to_checksum_address.side_effect = lambda a: a
             # Must complete without exception
-            await payout_safe(FAKE_CONTRACT_ADDRESS, FAKE_WALLET, 1_000)
+            await payout_safe(
+                FAKE_CONTRACT_ADDRESS,
+                FAKE_WALLET,
+                1_000,
+                "test@example.com",
+                "Test Event",
+            )
 
     async def test_exception_is_swallowed(self) -> None:
         with patch(
@@ -236,7 +242,13 @@ class TestPayoutSafe:
             side_effect=RuntimeError("node down"),
         ):
             # Must not propagate
-            await payout_safe(FAKE_CONTRACT_ADDRESS, FAKE_WALLET, 1_000)
+            await payout_safe(
+                FAKE_CONTRACT_ADDRESS,
+                FAKE_WALLET,
+                1_000,
+                "test@example.com",
+                "Test Event",
+            )
 
     async def test_exception_is_logged(self, caplog: pytest.LogCaptureFixture) -> None:
         with (
@@ -247,7 +259,13 @@ class TestPayoutSafe:
             ),
             caplog.at_level(logging.ERROR, logger="app.services.blockchain"),
         ):
-            await payout_safe(FAKE_CONTRACT_ADDRESS, FAKE_WALLET, 1_000)
+            await payout_safe(
+                FAKE_CONTRACT_ADDRESS,
+                FAKE_WALLET,
+                1_000,
+                "test@example.com",
+                "Test Event",
+            )
         assert "payout failed" in caplog.text
         assert FAKE_CONTRACT_ADDRESS in caplog.text
 

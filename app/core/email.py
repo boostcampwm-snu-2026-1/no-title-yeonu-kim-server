@@ -54,3 +54,36 @@ async def send_temp_password_email(to: str, temp_password: str) -> None:
     <h2 style="letter-spacing:4px">{temp_password}</h2>
     """
     await send_email(to, subject, body)
+
+
+async def send_reward_email(
+    to: str,
+    event_title: str,
+    reward_wei: int,
+    wallet_balance_wei: int,
+) -> None:
+    reward_eth = reward_wei / 10**18
+    balance_eth = wallet_balance_wei / 10**18
+    subject = "[VLSI] 리워드 지급 완료"
+    body = f"""
+    <p>안녕하세요,</p>
+    <p>스마트컨트랙트를 통한 리워드 지급이 완료되었습니다.</p>
+    <table style="border-collapse:collapse;margin-top:12px">
+      <tr>
+        <td style="padding:8px 16px 8px 0;color:#666">지급 이벤트</td>
+        <td style="padding:8px 0"><strong>{event_title}</strong></td>
+      </tr>
+      <tr>
+        <td style="padding:8px 16px 8px 0;color:#666">지급 금액</td>
+        <td style="padding:8px 0"><strong>{reward_eth:.6f} ETH</strong></td>
+      </tr>
+      <tr>
+        <td style="padding:8px 16px 8px 0;color:#666">현재 지갑 잔액</td>
+        <td style="padding:8px 0"><strong>{balance_eth:.6f} ETH</strong></td>
+      </tr>
+    </table>
+    <p style="margin-top:16px;color:#888;font-size:12px">
+      본 메일은 자동 발송된 메일입니다.
+    </p>
+    """
+    await send_email(to, subject, body)
