@@ -79,7 +79,12 @@ class TestCreateEvent:
     ) -> None:
         owner = await create_user(db, role="OWNER")
         store = await create_store(db, owner.id)
-        body = {"storeId": str(store.id), "title": "x", "condition": "y", "reward": 0.001}
+        body = {
+            "storeId": str(store.id),
+            "title": "x",
+            "condition": "y",
+            "reward": 0.001,
+        }
         res = await client.post("/api/event", json=body)
         assert res.status_code in (401, 403)
 
@@ -89,7 +94,12 @@ class TestCreateEvent:
         owner = await create_user(db, email="o1@example.com", role="OWNER")
         other = await create_user(db, email="o2@example.com", role="OWNER")
         store = await create_store(db, other.id)
-        body = {"storeId": str(store.id), "title": "x", "condition": "y", "reward": 0.001}
+        body = {
+            "storeId": str(store.id),
+            "title": "x",
+            "condition": "y",
+            "reward": 0.001,
+        }
         res = await client.post("/api/event", json=body, headers=auth_headers(owner.id))
         assert res.status_code == 403
 

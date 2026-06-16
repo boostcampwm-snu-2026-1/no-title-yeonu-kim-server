@@ -1,5 +1,5 @@
 from collections.abc import Generator
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import anthropic
@@ -18,7 +18,6 @@ from tests.conftest import (
     create_store,
     create_user,
 )
-
 
 DEPLOYED_ADDRESS = "0xDeAdBeEf00000000000000000000000000001234"
 FAKE_WALLET = "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12"
@@ -582,7 +581,9 @@ class TestApplicationBlockchainPayout:
                 "/api/applications", json=body, headers=auth_headers(reviewer.id)
             )
         assert res.status_code == 200
-        mock_payout.assert_awaited_once_with(DEPLOYED_ADDRESS, FAKE_WALLET, 1_000_000_000_000_000)
+        mock_payout.assert_awaited_once_with(
+            DEPLOYED_ADDRESS, FAKE_WALLET, 1_000_000_000_000_000
+        )
 
     async def test_payout_not_called_when_no_contract_address(
         self, client: AsyncClient, db: AsyncSession
@@ -611,9 +612,7 @@ class TestApplicationBlockchainPayout:
         reviewer = await create_user(db, role="REVIEWER")
         owner = await create_user(db, email="owner@example.com", role="OWNER")
         store = await create_store(db, owner.id)
-        event = await create_event(
-            db, store.id, contract_address=DEPLOYED_ADDRESS
-        )
+        event = await create_event(db, store.id, contract_address=DEPLOYED_ADDRESS)
         body = {
             "eventId": str(event.id),
             "walletAddress": FAKE_WALLET,
@@ -636,9 +635,7 @@ class TestApplicationBlockchainPayout:
         reviewer = await create_user(db, role="REVIEWER")
         owner = await create_user(db, email="owner@example.com", role="OWNER")
         store = await create_store(db, owner.id)
-        event = await create_event(
-            db, store.id, contract_address=DEPLOYED_ADDRESS
-        )
+        event = await create_event(db, store.id, contract_address=DEPLOYED_ADDRESS)
         body = {
             "eventId": str(event.id),
             "walletAddress": FAKE_WALLET,

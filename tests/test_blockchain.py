@@ -8,7 +8,7 @@ import logging
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -45,9 +45,7 @@ def reset_cache() -> Generator[None, None, None]:
 @pytest.fixture
 def artifact(tmp_path: Path) -> Path:
     p = tmp_path / "ReviewReward.json"
-    p.write_text(
-        json.dumps({"abi": FAKE_ABI, "bytecode": {"object": FAKE_BYTECODE}})
-    )
+    p.write_text(json.dumps({"abi": FAKE_ABI, "bytecode": {"object": FAKE_BYTECODE}}))
     return p
 
 
@@ -99,9 +97,7 @@ def make_w3_mock(
 
 @pytest.mark.asyncio
 class TestDeployContract:
-    async def test_returns_contract_address(
-        self, patched_settings: MagicMock
-    ) -> None:
+    async def test_returns_contract_address(self, patched_settings: MagicMock) -> None:
         w3 = make_w3_mock()
         with (
             patch("app.services.blockchain._make_w3", return_value=w3),
@@ -120,7 +116,9 @@ class TestDeployContract:
             mock_cls.to_checksum_address.side_effect = lambda a: a
             await deploy_contract()
 
-        build_tx = w3.eth.contract.return_value.constructor.return_value.build_transaction
+        build_tx = (
+            w3.eth.contract.return_value.constructor.return_value.build_transaction
+        )
         tx_kwargs: dict[str, Any] = build_tx.call_args[0][0]
         assert tx_kwargs["gas"] == 500_000
 
@@ -137,9 +135,7 @@ class TestDeployContract:
             await deploy_contract()
         assert FAKE_CONTRACT_ADDRESS in caplog.text
 
-    async def test_artifact_missing_raises_file_not_found(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_artifact_missing_raises_file_not_found(self, tmp_path: Path) -> None:
         with patch("app.services.blockchain.settings") as s:
             s.contract_artifact_path = str(tmp_path / "nonexistent.json")
             s.blockchain_rpc_url = "http://localhost:8545"
@@ -242,9 +238,7 @@ class TestPayoutSafe:
             # Must not propagate
             await payout_safe(FAKE_CONTRACT_ADDRESS, FAKE_WALLET, 1_000)
 
-    async def test_exception_is_logged(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    async def test_exception_is_logged(self, caplog: pytest.LogCaptureFixture) -> None:
         with (
             patch(
                 "app.services.blockchain.payout",

@@ -149,9 +149,7 @@ async def payout(contract_address: str, recipient: str, amount_wei: int) -> str:
     return tx_hex
 
 
-async def payout_safe(
-    contract_address: str, recipient: str, amount_wei: int
-) -> None:
+async def payout_safe(contract_address: str, recipient: str, amount_wei: int) -> None:
     """BackgroundTasks wrapper — logs errors instead of raising."""
     try:
         await payout(contract_address, recipient, amount_wei)
