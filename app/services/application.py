@@ -41,6 +41,8 @@ from app.services import blockchain as blockchain_service
 
 logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
+
 _MediaType = Literal["image/jpeg", "image/png", "image/gif", "image/webp"]
 _SUPPORTED_MEDIA_TYPES: frozenset[str] = frozenset(
     {"image/jpeg", "image/png", "image/gif", "image/webp"}

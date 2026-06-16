@@ -28,6 +28,7 @@ async def _deploy_or_none() -> str | None:
         return None
     try:
         from app.services.blockchain import deploy_contract
+
         return await deploy_contract()
     except Exception:
         logger.exception("[SEED] contract deploy failed, skipping")
@@ -37,6 +38,7 @@ async def _deploy_or_none() -> str | None:
 async def _fund_contract(contract_address: str, amount_wei: int) -> None:
     try:
         from app.services.blockchain import fund_contract
+
         await fund_contract(contract_address, amount_wei)
     except Exception:
         logger.exception("[SEED] contract fund failed contract=%s", contract_address)
