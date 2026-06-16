@@ -57,7 +57,7 @@ def _load_artifact() -> tuple[list[dict[str, Any]], str]:
     return _artifact_cache
 
 
-def _make_w3() -> AsyncWeb3:
+def _make_w3() -> "AsyncWeb3[Any]":
     return AsyncWeb3(AsyncWeb3.AsyncHTTPProvider(settings.blockchain_rpc_url))
 
 
@@ -69,7 +69,7 @@ async def deploy_contract() -> str:
 
     contract = w3.eth.contract(abi=abi, bytecode=bytecode)
     nonce = await w3.eth.get_transaction_count(account.address)
-    tx = await contract.constructor().build_transaction(  # type: ignore[attr-defined]
+    tx = await contract.constructor().build_transaction(
         {
             "from": account.address,
             "nonce": nonce,
@@ -124,7 +124,7 @@ async def payout(contract_address: str, recipient: str, amount_wei: int) -> str:
         abi=abi,
     )
     nonce = await w3.eth.get_transaction_count(account.address)
-    tx = await contract.functions.release(  # type: ignore[attr-defined]
+    tx = await contract.functions.release(
         AsyncWeb3.to_checksum_address(recipient),
         amount_wei,
     ).build_transaction(

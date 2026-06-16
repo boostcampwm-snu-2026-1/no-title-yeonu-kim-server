@@ -1,4 +1,5 @@
 import logging
+from typing import cast
 from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -145,6 +146,6 @@ async def reset_and_seed(engine: AsyncEngine) -> None:
         for spec in event_specs:
             contract_address = await _deploy_or_none()
             if contract_address:
-                await _fund_contract(contract_address, spec["reward"])
+                await _fund_contract(contract_address, cast(int, spec["reward"]))
             session.add(Event(id=uuid4(), contract_address=contract_address, **spec))
         await session.commit()
