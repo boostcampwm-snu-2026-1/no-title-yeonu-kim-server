@@ -39,6 +39,7 @@ from typing import Any
 from web3 import AsyncWeb3
 
 from app.core.config import settings
+from app.core.email import send_reward_email
 
 logger = logging.getLogger(__name__)
 
@@ -149,10 +150,24 @@ async def payout(contract_address: str, recipient: str, amount_wei: int) -> str:
     return tx_hex
 
 
-async def payout_safe(contract_address: str, recipient: str, amount_wei: int) -> None:
+async def get_wallet_balance(address: str) -> int:
+    """Return the ETH balance of a wallet address in wei."""
+    w3 = _make_w3()
+    return await w3.eth.get_balance(AsyncWeb3.to_checksum_address(address))
+
+
+async def payout_safe(
+    contract_address: str,
+    recipient: str,
+    amount_wei: int,
+    reviewer_email: str,
+    event_title: str,
+) -> None:
     """BackgroundTasks wrapper — logs errors instead of raising."""
     try:
         await payout(contract_address, recipient, amount_wei)
+        wallet_balance = await get_wallet_balance(recipient)
+        await send_reward_email(reviewer_email, event_title, amount_wei, wallet_balance)
     except Exception:
         logger.exception(
             "[BLOCKCHAIN] payout failed contract=%s recipient=%s amount_wei=%d",

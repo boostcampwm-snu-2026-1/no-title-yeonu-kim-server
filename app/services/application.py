@@ -31,6 +31,7 @@ from app.models.application import Application
 from app.models.event import Event
 from app.models.review_image import ReviewImage
 from app.models.review_submission import ReviewSubmission
+from app.models.user import User
 from app.schemas.application import (
     ApplicationCreateReq,
     ApplicationItem,
@@ -160,11 +161,15 @@ async def create_application(
         raise AppException(APPLICATION_003_APPLY) from e
 
     if event.contract_address:
+        reviewer = await db.scalar(select(User).where(User.id == UUID(reviewer_id)))
+        reviewer_email = reviewer.email if reviewer else ""
         background_tasks.add_task(
             blockchain_service.payout_safe,
             event.contract_address,
             data.walletAddress,
             event.reward,
+            reviewer_email,
+            event.title,
         )
 
 
