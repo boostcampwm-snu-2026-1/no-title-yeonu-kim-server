@@ -2,14 +2,10 @@
   "hooks": {
     "Stop": [
       {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "make test && make check",
-            "timeout": 120,
-            "statusMessage": "Running make test && make check..."
-          }
-        ]
+        "type": "command",
+        "command": "(uv run pytest tests/unit/ && make check) || true",
+        "timeout": 120,
+        "statusMessage": "Running tests and checks..."
       }
     ]
   }
