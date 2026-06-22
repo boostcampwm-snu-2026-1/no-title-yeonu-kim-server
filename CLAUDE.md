@@ -19,23 +19,29 @@ FastAPI 기반 백엔드 — 상점·이벤트·리뷰 신청 플랫폼
 
 ## 디렉토리 구조
 
+도메인 패키지 단위로 구성. 각 패키지가 모델·스키마·레포지토리·서비스·라우터를 모두 소유한다.
+
 ```
 app/
-├── api/v1/
-│   ├── endpoints/   # 도메인별 라우터 (auth, store, event, application, deposit, s3)
-│   │   └── CLAUDE.md  ← API 명세 전체
-│   ├── router.py
-│   └── deps.py      # 공통 의존성 (require_login)
+├── auth/            # 인증·사용자 도메인
+├── store/           # 상점 도메인
+├── event/           # 이벤트 도메인
+├── application/     # 신청·리뷰 도메인
+├── deposit/         # 입금 도메인
+├── s3/              # 파일 업로드 도메인
 ├── core/
 │   ├── config.py    # 환경변수 (Settings)
-│   └── security.py  # 비밀번호 해시, JWT
+│   ├── security.py  # 비밀번호 해시, JWT
+│   ├── exceptions.py
+│   └── email.py
 ├── db/
-│   ├── base.py      # DeclarativeBase
+│   ├── base.py      # DeclarativeBase + 전 도메인 모델 import
 │   └── session.py   # AsyncSession 팩토리
-├── models/          # SQLAlchemy ORM 모델  ← models/CLAUDE.md
-├── schemas/         # Pydantic 스키마       ← schemas/CLAUDE.md
-└── services/        # 비즈니스 로직         ← services/CLAUDE.md
+└── main.py
 ```
+
+각 도메인 패키지의 내부 구조 및 DI 패턴 → `app/CLAUDE.md`
+API 명세 전체 → `app/api/v1/endpoints/CLAUDE.md` (이관 완료까지 유지)
 
 ## 개발 명령어
 
@@ -80,21 +86,22 @@ API 명세 경로는 `/api/auth/...`, `/api/store/...` 형태 (v1 없음).
 
 ## 새 도메인 추가 순서
 
-1. `app/models/{domain}.py` — SQLAlchemy 모델 정의
+1. `app/{domain}/models.py` — SQLAlchemy 모델 정의
 2. `app/db/base.py`에 모델 import (Alembic autogenerate 필요)
 3. `uv run alembic revision --autogenerate -m "add {domain}"`
-4. `app/schemas/{domain}.py` — 요청·응답 Pydantic 스키마
-5. `app/services/{domain}.py` — 비즈니스 로직
-6. `app/api/v1/endpoints/{domain}.py` — 라우터
-7. `app/api/v1/router.py` — `include_router` 추가
+4. `app/{domain}/schemas.py` — 요청·응답 Pydantic 스키마
+5. `app/{domain}/repository.py` — ABC 인터페이스
+6. `app/{domain}/repository_impl.py` — SQLAlchemy 구현체
+7. `app/{domain}/service.py` — ABC 인터페이스
+8. `app/{domain}/service_impl.py` — 비즈니스 로직
+9. `app/{domain}/dependencies.py` — FastAPI DI 바인딩
+10. `app/{domain}/router.py` — 라우터
+11. `app/main.py` — `include_router` 추가
+
+각 단계의 구현 패턴 → `app/CLAUDE.md`
 
 ## 각 패키지 상세 지침
 
-작업 대상 패키지의 CLAUDE.md를 함께 읽을 것.
-
-| 작업                | 참조 파일                        |
-| ------------------- | -------------------------------- |
-| 모델 정의           | `app/models/CLAUDE.md`           |
-| 스키마 정의         | `app/schemas/CLAUDE.md`          |
-| 서비스 로직         | `app/services/CLAUDE.md`         |
-| 엔드포인트·API 명세 | `app/api/v1/endpoints/CLAUDE.md` |
+| 작업                  | 참조 파일       |
+| --------------------- | --------------- |
+| 도메인 패키지 구조·DI | `app/CLAUDE.md` |
