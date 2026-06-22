@@ -1,5 +1,6 @@
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, patch
 from uuid import UUID
 
 import pytest
@@ -24,6 +25,12 @@ from app.models.store import Store
 from app.models.user import User
 
 DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+
+
+@pytest.fixture(autouse=True)
+def mock_send_email() -> Generator[AsyncMock, None, None]:
+    with patch("app.core.email.send_email", new_callable=AsyncMock) as mock:
+        yield mock
 
 
 @pytest.fixture
