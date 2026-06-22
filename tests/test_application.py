@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import anthropic
 import pytest
+from fastapi import BackgroundTasks
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.application import Application
 from app.models.review_image import ReviewImage
 from app.models.review_submission import ReviewSubmission
+from app.services import blockchain as blockchain_service
 from tests.conftest import (
     auth_headers,
     create_application,
@@ -574,16 +576,17 @@ class TestApplicationBlockchainPayout:
             "walletAddress": FAKE_WALLET,
             "imageKey": "reviews/img.jpg",
         }
-        with patch(
-            "app.services.blockchain.payout_safe", new_callable=AsyncMock
-        ) as mock_payout:
+        with patch.object(BackgroundTasks, "add_task") as mock_add_task:
             res = await client.post(
                 "/api/applications", json=body, headers=auth_headers(reviewer.id)
             )
         assert res.status_code == 200
-        mock_payout.assert_awaited_once_with(
-            DEPLOYED_ADDRESS, FAKE_WALLET, 1_000_000_000_000_000
-        )
+        mock_add_task.assert_called_once()
+        call_args = mock_add_task.call_args.args
+        assert call_args[0] is blockchain_service.payout_safe
+        assert call_args[1] == DEPLOYED_ADDRESS
+        assert call_args[2] == FAKE_WALLET
+        assert call_args[3] == 1_000_000_000_000_000
 
     async def test_payout_not_called_when_no_contract_address(
         self, client: AsyncClient, db: AsyncSession
