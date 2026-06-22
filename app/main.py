@@ -7,6 +7,7 @@ from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 
 from app.api.v1.router import router as api_router
+from app.auth.router import router as auth_router
 from app.core.config import settings
 from app.core.exceptions import AppException
 from app.db.seed import reset_and_seed
@@ -22,6 +23,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
 
+app.include_router(auth_router, prefix="/api")
 app.include_router(api_router, prefix="/api")
 
 

@@ -1,10 +1,8 @@
 from fastapi import APIRouter, Depends, Request, Response
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_login
-from app.core.exceptions import AUTH_001, AppException
-from app.db.session import get_db
-from app.schemas.auth import (
+from app.auth.dependencies import get_auth_service
+from app.auth.schemas import (
     AccessTokenResp,
     AuthResp,
     ChangePasswordReq,
@@ -17,7 +15,8 @@ from app.schemas.auth import (
     ResetPasswordReq,
     UserInfo,
 )
-from app.services import auth as auth_service
+from app.auth.service import AuthService
+from app.core.exceptions import AUTH_001, AppException
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -25,25 +24,25 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 @router.post("/email", response_model=None)
 async def check_email(
     body: EmailCheckReq,
-    db: AsyncSession = Depends(get_db),
+    service: AuthService = Depends(get_auth_service),
 ) -> None:
-    await auth_service.check_email_duplicate(db, body.email)
+    await service.check_email_duplicate(body.email)
 
 
 @router.post("/email/verify", response_model=None)
 async def verify_email(
     body: EmailVerifyReq,
-    db: AsyncSession = Depends(get_db),
+    service: AuthService = Depends(get_auth_service),
 ) -> None:
-    await auth_service.send_verification_code(db, body.email)
+    await service.send_verification_code(body.email)
 
 
 @router.post("/email/validate", response_model=EmailValidateResp)
 async def validate_email(
     body: EmailValidateReq,
-    db: AsyncSession = Depends(get_db),
+    service: AuthService = Depends(get_auth_service),
 ) -> EmailValidateResp:
-    token = await auth_service.validate_verification_code(db, body.email, body.code)
+    token = await service.validate_verification_code(body.email, body.code)
     return EmailValidateResp(verificationToken=token)
 
 
@@ -51,9 +50,9 @@ async def validate_email(
 async def register(
     body: RegisterReq,
     response: Response,
-    db: AsyncSession = Depends(get_db),
+    service: AuthService = Depends(get_auth_service),
 ) -> AuthResp:
-    user, access_token, refresh_token = await auth_service.register(db, body)
+    user, access_token, refresh_token = await service.register(body)
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
@@ -67,11 +66,14 @@ async def register(
 
 
 @router.get("/token", response_model=AccessTokenResp)
-async def refresh_token(request: Request) -> AccessTokenResp:
+async def refresh_token(
+    request: Request,
+    service: AuthService = Depends(get_auth_service),
+) -> AccessTokenResp:
     token = request.cookies.get("refresh_token")
     if not token:
         raise AppException(AUTH_001)
-    access_token = auth_service.refresh_access_token(token)
+    access_token = service.refresh_access_token(token)
     return AccessTokenResp(accessToken=access_token)
 
 
@@ -79,9 +81,9 @@ async def refresh_token(request: Request) -> AccessTokenResp:
 async def login(
     body: LoginReq,
     response: Response,
-    db: AsyncSession = Depends(get_db),
+    service: AuthService = Depends(get_auth_service),
 ) -> AuthResp:
-    user, access_token, refresh_token = await auth_service.login(db, body)
+    user, access_token, refresh_token = await service.login(body)
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
@@ -105,15 +107,15 @@ async def logout(
 @router.patch("/password", response_model=None)
 async def change_password(
     body: ChangePasswordReq,
-    db: AsyncSession = Depends(get_db),
+    service: AuthService = Depends(get_auth_service),
     user_id: str = Depends(require_login),
 ) -> None:
-    await auth_service.change_password(db, user_id, body.oldPassword, body.newPassword)
+    await service.change_password(user_id, body.oldPassword, body.newPassword)
 
 
 @router.post("/password", response_model=None)
 async def reset_password(
     body: ResetPasswordReq,
-    db: AsyncSession = Depends(get_db),
+    service: AuthService = Depends(get_auth_service),
 ) -> None:
-    await auth_service.reset_password(db, body)
+    await service.reset_password(body)
