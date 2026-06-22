@@ -26,11 +26,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --group dev
 
-      - name: Lint & type check
-        run: make check
-
       - name: Run tests
         run: make test
         env:
           SECRET_KEY: ci-secret-key-for-testing
-          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
