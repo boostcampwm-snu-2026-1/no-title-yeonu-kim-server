@@ -45,7 +45,14 @@ class AuthServiceImpl(AuthService):
         expires_at = datetime.now(UTC) + timedelta(minutes=10)
         verification = EmailVerification(email=email, code=code, expires_at=expires_at)
         await self.ev_repo.save(verification)
-        await self.email_sender.send_verification(email, code)
+        subject = "[VLSI] 이메일 인증 코드"
+        body = f"""
+    <p>안녕하세요,</p>
+    <p>아래 인증 코드를 입력해 주세요. 코드는 <strong>10분</strong> 후 만료됩니다.</p>
+    <h2 style="letter-spacing:4px">{code}</h2>
+    <p>본인이 요청하지 않은 경우 이 메일을 무시하세요.</p>
+    """
+        await self.email_sender.send(email, subject, body)
 
     async def validate_verification_code(self, email: str, code: str) -> str:
         record = await self.ev_repo.find_latest_unverified(email, code)
@@ -104,4 +111,10 @@ class AuthServiceImpl(AuthService):
         )
         user.password_hash = get_password_hash(temp_password)
         await self.user_repo.save(user)
-        await self.email_sender.send_temp_password(data.email, temp_password)
+        subject = "[VLSI] 임시 비밀번호 안내"
+        body = f"""
+    <p>안녕하세요,</p>
+    <p>요청하신 임시 비밀번호입니다. 로그인 후 반드시 비밀번호를 변경해 주세요.</p>
+    <h2 style="letter-spacing:4px">{temp_password}</h2>
+    """
+        await self.email_sender.send(data.email, subject, body)
