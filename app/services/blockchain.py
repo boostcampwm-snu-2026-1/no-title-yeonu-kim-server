@@ -74,6 +74,7 @@ async def deploy_contract() -> str:
         {
             "from": account.address,
             "nonce": nonce,
+            "gas": 500_000,
         }
     )
 
