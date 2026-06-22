@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "make test && make check",
+            "timeout": 120,
+            "statusMessage": "Running make test && make check..."
+          }
+        ]
+      }
+    ]
+  }
+}
