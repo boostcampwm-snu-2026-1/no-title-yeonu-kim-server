@@ -6,6 +6,7 @@ from email.mime.text import MIMEText
 
 from app.core.config import settings
 from app.core.exceptions import MAIL_001, AppException
+from app.email.service import EmailSender
 
 logger = logging.getLogger(__name__)
 
@@ -35,37 +36,37 @@ async def send_email(to: str, subject: str, body_html: str) -> None:
         raise AppException(MAIL_001) from e
 
 
-async def send_verification_email(to: str, code: str) -> None:
-    subject = "[VLSI] 이메일 인증 코드"
-    body = f"""
+class SmtpEmailSender(EmailSender):
+    async def send_verification(self, to: str, code: str) -> None:
+        subject = "[VLSI] 이메일 인증 코드"
+        body = f"""
     <p>안녕하세요,</p>
     <p>아래 인증 코드를 입력해 주세요. 코드는 <strong>10분</strong> 후 만료됩니다.</p>
     <h2 style="letter-spacing:4px">{code}</h2>
     <p>본인이 요청하지 않은 경우 이 메일을 무시하세요.</p>
     """
-    await send_email(to, subject, body)
+        await send_email(to, subject, body)
 
-
-async def send_temp_password_email(to: str, temp_password: str) -> None:
-    subject = "[VLSI] 임시 비밀번호 안내"
-    body = f"""
+    async def send_temp_password(self, to: str, temp_password: str) -> None:
+        subject = "[VLSI] 임시 비밀번호 안내"
+        body = f"""
     <p>안녕하세요,</p>
     <p>요청하신 임시 비밀번호입니다. 로그인 후 반드시 비밀번호를 변경해 주세요.</p>
     <h2 style="letter-spacing:4px">{temp_password}</h2>
     """
-    await send_email(to, subject, body)
+        await send_email(to, subject, body)
 
-
-async def send_reward_email(
-    to: str,
-    event_title: str,
-    reward_wei: int,
-    wallet_balance_wei: int,
-) -> None:
-    reward_eth = reward_wei / 10**18
-    balance_eth = wallet_balance_wei / 10**18
-    subject = "[VLSI] 리워드 지급 완료"
-    body = f"""
+    async def send_reward(
+        self,
+        to: str,
+        event_title: str,
+        reward_wei: int,
+        wallet_balance_wei: int,
+    ) -> None:
+        reward_eth = reward_wei / 10**18
+        balance_eth = wallet_balance_wei / 10**18
+        subject = "[VLSI] 리워드 지급 완료"
+        body = f"""
     <p>안녕하세요,</p>
     <p>스마트컨트랙트를 통한 리워드 지급이 완료되었습니다.</p>
     <table style="border-collapse:collapse;margin-top:12px">
@@ -86,4 +87,13 @@ async def send_reward_email(
       본 메일은 자동 발송된 메일입니다.
     </p>
     """
-    await send_email(to, subject, body)
+        await send_email(to, subject, body)
+
+
+async def send_reward_email(
+    to: str,
+    event_title: str,
+    reward_wei: int,
+    wallet_balance_wei: int,
+) -> None:
+    await SmtpEmailSender().send_reward(to, event_title, reward_wei, wallet_balance_wei)

@@ -6,7 +6,6 @@ from app.auth.models import EmailVerification, User
 from app.auth.repository import EmailVerificationRepository, UserRepository
 from app.auth.schemas import LoginReq, RegisterReq, ResetPasswordReq
 from app.auth.service import AuthService
-from app.core.email import send_temp_password_email, send_verification_email
 from app.core.exceptions import (
     AUTH_001,
     AUTH_002,
@@ -23,6 +22,7 @@ from app.core.security import (
     get_password_hash,
     verify_password,
 )
+from app.email.service import EmailSender
 
 
 class AuthServiceImpl(AuthService):
@@ -30,9 +30,11 @@ class AuthServiceImpl(AuthService):
         self,
         user_repo: UserRepository,
         ev_repo: EmailVerificationRepository,
+        email_sender: EmailSender,
     ) -> None:
         self.user_repo = user_repo
         self.ev_repo = ev_repo
+        self.email_sender = email_sender
 
     async def check_email_duplicate(self, email: str) -> None:
         if await self.user_repo.find_by_email(email):
@@ -43,7 +45,7 @@ class AuthServiceImpl(AuthService):
         expires_at = datetime.now(UTC) + timedelta(minutes=10)
         verification = EmailVerification(email=email, code=code, expires_at=expires_at)
         await self.ev_repo.save(verification)
-        await send_verification_email(email, code)
+        await self.email_sender.send_verification(email, code)
 
     async def validate_verification_code(self, email: str, code: str) -> str:
         record = await self.ev_repo.find_latest_unverified(email, code)
@@ -102,4 +104,4 @@ class AuthServiceImpl(AuthService):
         )
         user.password_hash = get_password_hash(temp_password)
         await self.user_repo.save(user)
-        await send_temp_password_email(data.email, temp_password)
+        await self.email_sender.send_temp_password(data.email, temp_password)

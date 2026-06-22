@@ -13,9 +13,11 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import StaticPool
 
+from app.auth.dependencies import get_email_sender
 from app.core.security import create_access_token, get_password_hash
 from app.db.base import Base
 from app.db.session import get_db
+from app.email.service import EmailSender
 from app.main import app
 from app.models.application import Application
 from app.models.deposit import Deposit
@@ -27,9 +29,19 @@ from app.models.user import User
 DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
+class _NoopEmailSender(EmailSender):
+    async def send_verification(self, to: str, code: str) -> None: ...
+
+    async def send_temp_password(self, to: str, temp_password: str) -> None: ...
+
+    async def send_reward(
+        self, to: str, event_title: str, reward_wei: int, wallet_balance_wei: int
+    ) -> None: ...
+
+
 @pytest.fixture(autouse=True)
 def mock_send_email() -> Generator[AsyncMock, None, None]:
-    with patch("app.core.email.send_email", new_callable=AsyncMock) as mock:
+    with patch("app.email.service_impl.send_email", new_callable=AsyncMock) as mock:
         yield mock
 
 
@@ -62,6 +74,7 @@ async def client(engine: AsyncEngine) -> AsyncGenerator[AsyncClient, None]:
             yield session
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_email_sender] = _NoopEmailSender
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as ac:

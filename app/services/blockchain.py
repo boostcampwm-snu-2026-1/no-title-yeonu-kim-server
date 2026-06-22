@@ -39,7 +39,7 @@ from typing import Any
 from web3 import AsyncWeb3
 
 from app.core.config import settings
-from app.core.email import send_reward_email
+from app.email.service_impl import send_reward_email
 
 logger = logging.getLogger(__name__)
 
