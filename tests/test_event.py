@@ -25,7 +25,7 @@ class TestCreateEvent:
     @pytest.fixture(autouse=True)
     def mock_deploy(self) -> Generator[None, None, None]:
         with patch(
-            "app.services.event.blockchain_service.deploy_contract",
+            "app.event.service_impl.blockchain_service.deploy_contract",
             new_callable=AsyncMock,
             return_value=DEPLOYED_ADDRESS,
         ):
