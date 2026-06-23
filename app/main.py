@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.exceptions import AppException
 from app.db.seed import reset_and_seed
 from app.db.session import engine
+from app.s3.router import router as s3_router
 
 
 @asynccontextmanager
@@ -24,6 +25,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
 
 app.include_router(auth_router, prefix="/api")
+app.include_router(s3_router, prefix="/api")
 app.include_router(api_router, prefix="/api")
 
 
