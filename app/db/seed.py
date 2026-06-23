@@ -10,6 +10,7 @@ from app.application.models import (  # noqa: F401
     ReviewSubmission,
 )
 from app.auth.models import EmailVerification, User  # noqa: F401
+from app.blockchain.service_impl import BlockchainServiceImpl
 from app.core.config import settings
 from app.core.security import get_password_hash
 from app.db.base import Base
@@ -24,8 +25,6 @@ async def _deploy_or_none() -> str | None:
     if not settings.blockchain_rpc_url or not settings.server_private_key:
         return None
     try:
-        from app.blockchain.service_impl import BlockchainServiceImpl
-
         return await BlockchainServiceImpl().deploy_contract()
     except Exception:
         logger.exception("[SEED] contract deploy failed, skipping")
@@ -34,8 +33,6 @@ async def _deploy_or_none() -> str | None:
 
 async def _fund_contract(contract_address: str, amount_wei: int) -> None:
     try:
-        from app.blockchain.service_impl import BlockchainServiceImpl
-
         await BlockchainServiceImpl().fund_contract(contract_address, amount_wei)
     except Exception:
         logger.exception("[SEED] contract fund failed contract=%s", contract_address)
