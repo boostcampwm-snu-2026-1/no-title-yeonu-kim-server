@@ -1,8 +1,7 @@
 from collections.abc import Generator
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
-import anthropic
 import pytest
 from fastapi import BackgroundTasks
 from httpx import AsyncClient
@@ -12,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.application.models import Application, ReviewImage, ReviewSubmission
 from app.application.service_impl import ApplicationServiceImpl
 from app.blockchain.service_impl import BlockchainServiceImpl
+from app.ocr.service_impl import OCRServiceImpl
 from app.s3.service_impl import S3ServiceImpl
 from tests.conftest import (
     auth_headers,
@@ -423,14 +423,6 @@ class TestCreateApplicationImageValidation:
         with patch.object(BlockchainServiceImpl, "payout_safe", new_callable=AsyncMock):
             yield
 
-    def _make_claude_mock(self, verdict: str) -> tuple[MagicMock, AsyncMock]:
-        block = anthropic.types.TextBlock(text=verdict, type="text")
-        response = MagicMock()
-        response.content = [block]
-        mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=response)
-        return response, mock_client
-
     async def test_image_condition_pass_returns_200(
         self, client: AsyncClient, db: AsyncSession
     ) -> None:
@@ -443,7 +435,6 @@ class TestCreateApplicationImageValidation:
             "walletAddress": "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12",
             "imageKey": "reviews/food.jpg",
         }
-        _, mock_client = self._make_claude_mock("PASS")
         with (
             patch.object(
                 S3ServiceImpl,
@@ -451,9 +442,13 @@ class TestCreateApplicationImageValidation:
                 new_callable=AsyncMock,
                 return_value=(b"fake-image", "image/jpeg"),
             ),
-            patch("app.application.service_impl.anthropic.AsyncAnthropic") as mock_cls,
+            patch.object(
+                OCRServiceImpl,
+                "check_condition",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
         ):
-            mock_cls.return_value = mock_client
             res = await client.post(
                 "/api/applications", json=body, headers=auth_headers(reviewer.id)
             )
@@ -472,7 +467,6 @@ class TestCreateApplicationImageValidation:
             "walletAddress": "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12",
             "imageKey": "reviews/not_food.jpg",
         }
-        _, mock_client = self._make_claude_mock("FAIL")
         with (
             patch.object(
                 S3ServiceImpl,
@@ -480,9 +474,13 @@ class TestCreateApplicationImageValidation:
                 new_callable=AsyncMock,
                 return_value=(b"fake-image", "image/jpeg"),
             ),
-            patch("app.application.service_impl.anthropic.AsyncAnthropic") as mock_cls,
+            patch.object(
+                OCRServiceImpl,
+                "check_condition",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
         ):
-            mock_cls.return_value = mock_client
             res = await client.post(
                 "/api/applications", json=body, headers=auth_headers(reviewer.id)
             )
@@ -502,7 +500,6 @@ class TestCreateApplicationImageValidation:
             "walletAddress": "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12",
             "imageKey": "reviews/bad.jpg",
         }
-        _, mock_client = self._make_claude_mock("FAIL")
         with (
             patch.object(
                 S3ServiceImpl,
@@ -510,9 +507,13 @@ class TestCreateApplicationImageValidation:
                 new_callable=AsyncMock,
                 return_value=(b"fake-image", "image/jpeg"),
             ),
-            patch("app.application.service_impl.anthropic.AsyncAnthropic") as mock_cls,
+            patch.object(
+                OCRServiceImpl,
+                "check_condition",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
         ):
-            mock_cls.return_value = mock_client
             await client.post(
                 "/api/applications", json=body, headers=auth_headers(reviewer.id)
             )

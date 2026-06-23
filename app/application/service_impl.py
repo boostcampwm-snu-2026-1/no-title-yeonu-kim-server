@@ -1,10 +1,7 @@
-import base64
 import logging
 import re
-from typing import Literal, cast
 from uuid import UUID
 
-import anthropic
 from fastapi import BackgroundTasks
 
 from app.application.models import Application
@@ -17,7 +14,6 @@ from app.application.schemas import (
 )
 from app.application.service import ApplicationService
 from app.blockchain.service import BlockchainService
-from app.core.config import settings
 from app.core.exceptions import (
     APPLICATION_001,
     APPLICATION_002,
@@ -30,21 +26,12 @@ from app.core.exceptions import (
     AppException,
     ImageConditionNotMetError,
 )
+from app.ocr.service import OCRService
 from app.s3.service import S3Service
 
 logger = logging.getLogger(__name__)
 
-_MediaType = Literal["image/jpeg", "image/png", "image/gif", "image/webp"]
-_SUPPORTED_MEDIA_TYPES: frozenset[str] = frozenset(
-    {"image/jpeg", "image/png", "image/gif", "image/webp"}
-)
 _ETHEREUM_ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
-
-
-def _to_media_type(content_type: str) -> _MediaType:
-    if content_type in _SUPPORTED_MEDIA_TYPES:
-        return cast(_MediaType, content_type)
-    return "image/jpeg"
 
 
 class ApplicationServiceImpl(ApplicationService):
@@ -53,56 +40,17 @@ class ApplicationServiceImpl(ApplicationService):
         repo: ApplicationRepository,
         blockchain: BlockchainService,
         s3: S3Service,
+        ocr: OCRService,
     ) -> None:
         self.repo = repo
         self.blockchain = blockchain
         self.s3 = s3
+        self.ocr = ocr
 
     async def _validate_image_condition(self, image_key: str, condition: str) -> None:
         image_bytes, content_type = await self.s3.download_private(image_key)
-        media_type = _to_media_type(content_type)
-        encoded = base64.standard_b64encode(image_bytes).decode("utf-8")
-
-        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-        response = await client.messages.create(
-            model="claude-opus-4-8",
-            max_tokens=128,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": media_type,
-                                "data": encoded,
-                            },
-                        },
-                        {
-                            "type": "text",
-                            "text": (
-                                f"이미지가 아래 조건을 충족하는지 판단하세요.\n"
-                                f"조건: {condition}\n\n"
-                                "충족하면 'PASS', 충족하지 않으면 'FAIL'로만 응답하세요."  # noqa: E501
-                            ),
-                        },
-                    ],
-                }
-            ],
-        )
-
-        block = response.content[0]
-        verdict = (
-            block.text.strip()
-            if isinstance(block, anthropic.types.TextBlock)
-            else "(non-text block)"
-        )
-        logger.warning("[IMAGE_VALIDATION] key=%s verdict=%r", image_key, verdict)
-        if (
-            not isinstance(block, anthropic.types.TextBlock)
-            or "FAIL" in block.text.upper()
-        ):
+        passed = await self.ocr.check_condition(image_bytes, content_type, condition)
+        if not passed:
             raise ImageConditionNotMetError()
 
     async def create_application(

@@ -8,6 +8,8 @@ from app.application.service_impl import ApplicationServiceImpl
 from app.blockchain.dependencies import get_blockchain_service
 from app.blockchain.service import BlockchainService
 from app.db.session import get_db
+from app.ocr.dependencies import get_ocr_service
+from app.ocr.service import OCRService
 from app.s3.dependencies import get_s3_service
 from app.s3.service import S3Service
 
@@ -22,5 +24,6 @@ def get_application_service(
     repo: ApplicationRepository = Depends(get_application_repository),
     blockchain: BlockchainService = Depends(get_blockchain_service),
     s3: S3Service = Depends(get_s3_service),
+    ocr: OCRService = Depends(get_ocr_service),
 ) -> ApplicationService:
-    return ApplicationServiceImpl(repo, blockchain, s3)
+    return ApplicationServiceImpl(repo, blockchain, s3, ocr)
