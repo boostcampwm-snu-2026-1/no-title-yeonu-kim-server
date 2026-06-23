@@ -19,12 +19,24 @@ from app.core.exceptions import (
     GEN_005,
     AppException,
 )
+from app.s3.service import S3Service
 
 
 def _make_repo() -> AsyncMock:
     return AsyncMock(spec=ApplicationRepository)
 
 
+<<<<<<< Updated upstream
+=======
+def _make_blockchain() -> AsyncMock:
+    return AsyncMock(spec=BlockchainService)
+
+
+def _make_s3() -> AsyncMock:
+    return AsyncMock(spec=S3Service)
+
+
+>>>>>>> Stashed changes
 def _mock_event(
     *, is_active: bool = True, contract_address: str | None = None
 ) -> MagicMock:
@@ -56,7 +68,11 @@ class TestCancelApplication:
     async def test_raises_application_002_when_not_found(self) -> None:
         repo = _make_repo()
         repo.find_by_id.return_value = None
+<<<<<<< Updated upstream
         service = ApplicationServiceImpl(repo)
+=======
+        service = ApplicationServiceImpl(repo, _make_blockchain(), _make_s3())
+>>>>>>> Stashed changes
         with pytest.raises(AppException) as exc:
             await service.cancel_application(str(uuid4()), str(uuid4()))
         assert exc.value.code == APPLICATION_002.code
@@ -68,7 +84,11 @@ class TestCancelApplication:
         app = _mock_application(reviewer_id=reviewer_id)
         repo = _make_repo()
         repo.find_by_id.return_value = app
+<<<<<<< Updated upstream
         service = ApplicationServiceImpl(repo)
+=======
+        service = ApplicationServiceImpl(repo, _make_blockchain(), _make_s3())
+>>>>>>> Stashed changes
         with pytest.raises(AppException) as exc:
             await service.cancel_application(str(app.id), str(other_id))
         assert exc.value.code == APPLICATION_001.code
@@ -78,7 +98,11 @@ class TestCancelApplication:
         app = _mock_application(status="APPROVED", reviewer_id=reviewer_id)
         repo = _make_repo()
         repo.find_by_id.return_value = app
+<<<<<<< Updated upstream
         service = ApplicationServiceImpl(repo)
+=======
+        service = ApplicationServiceImpl(repo, _make_blockchain(), _make_s3())
+>>>>>>> Stashed changes
         with pytest.raises(AppException) as exc:
             await service.cancel_application(str(app.id), str(reviewer_id))
         assert exc.value.code == GEN_003_STATUS.code
@@ -88,7 +112,11 @@ class TestCancelApplication:
         app = _mock_application(status="PENDING", reviewer_id=reviewer_id)
         repo = _make_repo()
         repo.find_by_id.return_value = app
+<<<<<<< Updated upstream
         service = ApplicationServiceImpl(repo)
+=======
+        service = ApplicationServiceImpl(repo, _make_blockchain(), _make_s3())
+>>>>>>> Stashed changes
         await service.cancel_application(str(app.id), str(reviewer_id))
         repo.delete.assert_awaited_once_with(app)
 
@@ -98,7 +126,11 @@ class TestSubmitReview:
     async def test_raises_application_002_when_application_not_found(self) -> None:
         repo = _make_repo()
         repo.find_by_id.return_value = None
+<<<<<<< Updated upstream
         service = ApplicationServiceImpl(repo)
+=======
+        service = ApplicationServiceImpl(repo, _make_blockchain(), _make_s3())
+>>>>>>> Stashed changes
         data = ReviewSubmissionReq(imageList=[], comment="x")
         with pytest.raises(AppException) as exc:
             await service.submit_review(str(uuid4()), str(uuid4()), data)
@@ -110,7 +142,11 @@ class TestSubmitReview:
         app = _mock_application(reviewer_id=reviewer_id)
         repo = _make_repo()
         repo.find_by_id.return_value = app
+<<<<<<< Updated upstream
         service = ApplicationServiceImpl(repo)
+=======
+        service = ApplicationServiceImpl(repo, _make_blockchain(), _make_s3())
+>>>>>>> Stashed changes
         data = ReviewSubmissionReq(imageList=[], comment="x")
         with pytest.raises(AppException) as exc:
             await service.submit_review(str(app.id), str(other_id), data)
@@ -122,7 +158,11 @@ class TestSubmitReview:
         repo = _make_repo()
         repo.find_by_id.return_value = app
         repo.find_submission_by_application_id.return_value = MagicMock()
+<<<<<<< Updated upstream
         service = ApplicationServiceImpl(repo)
+=======
+        service = ApplicationServiceImpl(repo, _make_blockchain(), _make_s3())
+>>>>>>> Stashed changes
         data = ReviewSubmissionReq(imageList=[], comment="x")
         with pytest.raises(AppException) as exc:
             await service.submit_review(str(app.id), str(reviewer_id), data)
@@ -134,7 +174,11 @@ class TestSubmitReview:
         repo = _make_repo()
         repo.find_by_id.return_value = app
         repo.find_submission_by_application_id.return_value = None
+<<<<<<< Updated upstream
         service = ApplicationServiceImpl(repo)
+=======
+        service = ApplicationServiceImpl(repo, _make_blockchain(), _make_s3())
+>>>>>>> Stashed changes
         data = ReviewSubmissionReq(imageList=["img1.jpg", "img2.jpg"], comment="Great!")
         await service.submit_review(str(app.id), str(reviewer_id), data)
         repo.save_review.assert_awaited_once()
@@ -148,7 +192,11 @@ class TestSubmitReview:
         repo = _make_repo()
         repo.find_by_id.return_value = app
         repo.find_submission_by_application_id.return_value = None
+<<<<<<< Updated upstream
         service = ApplicationServiceImpl(repo)
+=======
+        service = ApplicationServiceImpl(repo, _make_blockchain(), _make_s3())
+>>>>>>> Stashed changes
         data = ReviewSubmissionReq(imageList=[], comment="Just text!")
         await service.submit_review(str(app.id), str(reviewer_id), data)
         repo.save_review.assert_awaited_once()
@@ -160,7 +208,11 @@ class TestCreateApplication:
         from fastapi import BackgroundTasks
 
         repo = _make_repo()
+<<<<<<< Updated upstream
         service = ApplicationServiceImpl(repo)
+=======
+        service = ApplicationServiceImpl(repo, _make_blockchain(), _make_s3())
+>>>>>>> Stashed changes
         data = ApplicationCreateReq(
             eventId=str(uuid4()),
             walletAddress="not-a-wallet",
@@ -175,7 +227,11 @@ class TestCreateApplication:
         from fastapi import BackgroundTasks
 
         repo = _make_repo()
+<<<<<<< Updated upstream
         service = ApplicationServiceImpl(repo)
+=======
+        service = ApplicationServiceImpl(repo, _make_blockchain(), _make_s3())
+>>>>>>> Stashed changes
         data = ApplicationCreateReq(
             eventId=str(uuid4()),
             walletAddress="AbCdEf1234567890AbCdEf1234567890AbCdEf12",
@@ -190,7 +246,11 @@ class TestCreateApplication:
 
         repo = _make_repo()
         repo.find_event_by_id.return_value = None
+<<<<<<< Updated upstream
         service = ApplicationServiceImpl(repo)
+=======
+        service = ApplicationServiceImpl(repo, _make_blockchain(), _make_s3())
+>>>>>>> Stashed changes
         data = ApplicationCreateReq(
             eventId=str(uuid4()),
             walletAddress=_VALID_WALLET,
@@ -206,7 +266,11 @@ class TestCreateApplication:
         event = _mock_event(is_active=False)
         repo = _make_repo()
         repo.find_event_by_id.return_value = event
+<<<<<<< Updated upstream
         service = ApplicationServiceImpl(repo)
+=======
+        service = ApplicationServiceImpl(repo, _make_blockchain(), _make_s3())
+>>>>>>> Stashed changes
         data = ApplicationCreateReq(
             eventId=str(event.id),
             walletAddress=_VALID_WALLET,
@@ -223,7 +287,11 @@ class TestCreateApplication:
         repo = _make_repo()
         repo.find_event_by_id.return_value = event
         repo.find_by_event_and_reviewer.return_value = MagicMock()
+<<<<<<< Updated upstream
         service = ApplicationServiceImpl(repo)
+=======
+        service = ApplicationServiceImpl(repo, _make_blockchain(), _make_s3())
+>>>>>>> Stashed changes
         data = ApplicationCreateReq(
             eventId=str(event.id),
             walletAddress=_VALID_WALLET,
@@ -240,15 +308,18 @@ class TestCreateApplication:
         repo = _make_repo()
         repo.find_event_by_id.return_value = event
         repo.find_by_event_and_reviewer.return_value = None
+<<<<<<< Updated upstream
         service = ApplicationServiceImpl(repo)
+=======
+        service = ApplicationServiceImpl(repo, _make_blockchain(), _make_s3())
+>>>>>>> Stashed changes
         data = ApplicationCreateReq(
             eventId=str(event.id),
             walletAddress=_VALID_WALLET,
             imageKey="img.jpg",
         )
-        with patch(
-            "app.application.service_impl._validate_image_condition",
-            new_callable=AsyncMock,
+        with patch.object(
+            ApplicationServiceImpl, "_validate_image_condition", new_callable=AsyncMock
         ):
             await service.create_application(str(uuid4()), data, BackgroundTasks())
         repo.save_application.assert_awaited_once()
@@ -267,16 +338,19 @@ class TestCreateApplication:
         repo.find_event_by_id.return_value = event
         repo.find_by_event_and_reviewer.return_value = None
         repo.find_user_by_id.return_value = reviewer
+<<<<<<< Updated upstream
         service = ApplicationServiceImpl(repo)
+=======
+        service = ApplicationServiceImpl(repo, _make_blockchain(), _make_s3())
+>>>>>>> Stashed changes
         data = ApplicationCreateReq(
             eventId=str(event.id),
             walletAddress=_VALID_WALLET,
             imageKey="img.jpg",
         )
         bg = BackgroundTasks()
-        with patch(
-            "app.application.service_impl._validate_image_condition",
-            new_callable=AsyncMock,
+        with patch.object(
+            ApplicationServiceImpl, "_validate_image_condition", new_callable=AsyncMock
         ):
             await service.create_application(str(reviewer_id), data, bg)
         assert len(bg.tasks) == 1
@@ -289,16 +363,19 @@ class TestCreateApplication:
         repo = _make_repo()
         repo.find_event_by_id.return_value = event
         repo.find_by_event_and_reviewer.return_value = None
+<<<<<<< Updated upstream
         service = ApplicationServiceImpl(repo)
+=======
+        service = ApplicationServiceImpl(repo, _make_blockchain(), _make_s3())
+>>>>>>> Stashed changes
         data = ApplicationCreateReq(
             eventId=str(event.id),
             walletAddress=_VALID_WALLET,
             imageKey="img.jpg",
         )
         bg = BackgroundTasks()
-        with patch(
-            "app.application.service_impl._validate_image_condition",
-            new_callable=AsyncMock,
+        with patch.object(
+            ApplicationServiceImpl, "_validate_image_condition", new_callable=AsyncMock
         ):
             await service.create_application(str(reviewer_id), data, bg)
         assert len(bg.tasks) == 0

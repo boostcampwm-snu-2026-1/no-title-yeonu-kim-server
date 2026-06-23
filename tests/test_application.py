@@ -10,7 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.models import Application, ReviewImage, ReviewSubmission
-from app.services import blockchain as blockchain_service
+from app.application.service_impl import ApplicationServiceImpl
+from app.s3.service_impl import S3ServiceImpl
 from tests.conftest import (
     auth_headers,
     create_application,
@@ -27,9 +28,8 @@ FAKE_WALLET = "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12"
 class TestCreateApplication:
     @pytest.fixture(autouse=True)
     def mock_image_validation(self) -> Generator[None, None, None]:
-        with patch(
-            "app.application.service_impl._validate_image_condition",
-            new_callable=AsyncMock,
+        with patch.object(
+            ApplicationServiceImpl, "_validate_image_condition", new_callable=AsyncMock
         ):
             yield
 
@@ -450,8 +450,9 @@ class TestCreateApplicationImageValidation:
         }
         _, mock_client = self._make_claude_mock("PASS")
         with (
-            patch(
-                "app.application.service_impl._download_image",
+            patch.object(
+                S3ServiceImpl,
+                "download_private",
                 new_callable=AsyncMock,
                 return_value=(b"fake-image", "image/jpeg"),
             ),
@@ -478,8 +479,9 @@ class TestCreateApplicationImageValidation:
         }
         _, mock_client = self._make_claude_mock("FAIL")
         with (
-            patch(
-                "app.application.service_impl._download_image",
+            patch.object(
+                S3ServiceImpl,
+                "download_private",
                 new_callable=AsyncMock,
                 return_value=(b"fake-image", "image/jpeg"),
             ),
@@ -507,8 +509,9 @@ class TestCreateApplicationImageValidation:
         }
         _, mock_client = self._make_claude_mock("FAIL")
         with (
-            patch(
-                "app.application.service_impl._download_image",
+            patch.object(
+                S3ServiceImpl,
+                "download_private",
                 new_callable=AsyncMock,
                 return_value=(b"fake-image", "image/jpeg"),
             ),
@@ -537,8 +540,9 @@ class TestCreateApplicationImageValidation:
             "walletAddress": "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12",
             "imageKey": "reviews/missing.jpg",
         }
-        with patch(
-            "app.application.service_impl._download_image",
+        with patch.object(
+            S3ServiceImpl,
+            "download_private",
             new_callable=AsyncMock,
             side_effect=AppException(IMAGE_002),
         ):
@@ -554,9 +558,8 @@ class TestApplicationBlockchainPayout:
 
     @pytest.fixture(autouse=True)
     def mock_image_validation(self) -> Generator[None, None, None]:
-        with patch(
-            "app.application.service_impl._validate_image_condition",
-            new_callable=AsyncMock,
+        with patch.object(
+            ApplicationServiceImpl, "_validate_image_condition", new_callable=AsyncMock
         ):
             yield
 

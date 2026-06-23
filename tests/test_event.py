@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.models import ReviewSubmission
+from app.blockchain.service_impl import BlockchainServiceImpl
 from app.event.models import Event
 from tests.conftest import (
     auth_headers,
@@ -24,8 +25,9 @@ DEPLOYED_ADDRESS = "0xDeAdBeEf00000000000000000000000000001234"
 class TestCreateEvent:
     @pytest.fixture(autouse=True)
     def mock_deploy(self) -> Generator[None, None, None]:
-        with patch(
-            "app.event.service_impl.blockchain_service.deploy_contract",
+        with patch.object(
+            BlockchainServiceImpl,
+            "deploy_contract",
             new_callable=AsyncMock,
             return_value=DEPLOYED_ADDRESS,
         ):

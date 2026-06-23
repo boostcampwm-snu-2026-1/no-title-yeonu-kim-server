@@ -1,4 +1,3 @@
-import asyncio
 import base64
 import logging
 import re
@@ -6,8 +5,6 @@ from typing import Literal, cast
 from uuid import UUID
 
 import anthropic
-import boto3  # type: ignore[import-untyped]
-from botocore.exceptions import ClientError  # type: ignore[import-untyped]
 from fastapi import BackgroundTasks
 
 from app.application.models import Application
@@ -29,11 +26,11 @@ from app.core.exceptions import (
     GEN_003_CLOSED,
     GEN_003_STATUS,
     GEN_005,
-    IMAGE_002,
     AppException,
     ImageConditionNotMetError,
 )
 from app.services import blockchain as blockchain_service
+from app.s3.service import S3Service
 
 logger = logging.getLogger(__name__)
 
@@ -50,71 +47,68 @@ def _to_media_type(content_type: str) -> _MediaType:
     return "image/jpeg"
 
 
-async def _download_image(image_key: str) -> tuple[bytes, str]:
-    def _sync() -> tuple[bytes, str]:
-        s3 = boto3.client(
-            "s3",
-            aws_access_key_id=settings.aws_access_key_id,
-            aws_secret_access_key=settings.aws_secret_access_key,
-            region_name=settings.aws_region,
-        )
-        try:
-            resp = s3.get_object(Bucket=settings.s3_private_bucket, Key=image_key)
-        except ClientError as e:
-            raise AppException(IMAGE_002) from e
-        return resp["Body"].read(), str(resp.get("ContentType", "image/jpeg"))
-
-    return await asyncio.get_running_loop().run_in_executor(None, _sync)
-
-
-async def _validate_image_condition(image_key: str, condition: str) -> None:
-    image_bytes, content_type = await _download_image(image_key)
-    media_type = _to_media_type(content_type)
-    encoded = base64.standard_b64encode(image_bytes).decode("utf-8")
-
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-    response = await client.messages.create(
-        model="claude-opus-4-8",
-        max_tokens=128,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": encoded,
-                        },
-                    },
-                    {
-                        "type": "text",
-                        "text": (
-                            f"이미지가 아래 조건을 충족하는지 판단하세요.\n"
-                            f"조건: {condition}\n\n"
-                            "충족하면 'PASS', 충족하지 않으면 'FAIL'로만 응답하세요."
-                        ),
-                    },
-                ],
-            }
-        ],
-    )
-
-    block = response.content[0]
-    verdict = (
-        block.text.strip()
-        if isinstance(block, anthropic.types.TextBlock)
-        else "(non-text block)"
-    )
-    logger.warning("[IMAGE_VALIDATION] key=%s verdict=%r", image_key, verdict)
-    if not isinstance(block, anthropic.types.TextBlock) or "FAIL" in block.text.upper():
-        raise ImageConditionNotMetError()
-
-
 class ApplicationServiceImpl(ApplicationService):
+<<<<<<< Updated upstream
     def __init__(self, repo: ApplicationRepository) -> None:
         self.repo = repo
+=======
+    def __init__(
+        self,
+        repo: ApplicationRepository,
+        blockchain: BlockchainService,
+        s3: S3Service,
+    ) -> None:
+        self.repo = repo
+        self.blockchain = blockchain
+        self.s3 = s3
+
+    async def _validate_image_condition(self, image_key: str, condition: str) -> None:
+        image_bytes, content_type = await self.s3.download_private(image_key)
+        media_type = _to_media_type(content_type)
+        encoded = base64.standard_b64encode(image_bytes).decode("utf-8")
+
+        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+        response = await client.messages.create(
+            model="claude-opus-4-8",
+            max_tokens=128,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": encoded,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": (
+                                f"이미지가 아래 조건을 충족하는지 판단하세요.\n"
+                                f"조건: {condition}\n\n"
+                                "충족하면 'PASS', 충족하지 않으면 'FAIL'로만 응답하세요."  # noqa: E501
+                            ),
+                        },
+                    ],
+                }
+            ],
+        )
+
+        block = response.content[0]
+        verdict = (
+            block.text.strip()
+            if isinstance(block, anthropic.types.TextBlock)
+            else "(non-text block)"
+        )
+        logger.warning("[IMAGE_VALIDATION] key=%s verdict=%r", image_key, verdict)
+        if (
+            not isinstance(block, anthropic.types.TextBlock)
+            or "FAIL" in block.text.upper()
+        ):  # noqa: E501
+            raise ImageConditionNotMetError()
+>>>>>>> Stashed changes
 
     async def create_application(
         self,
@@ -138,7 +132,7 @@ class ApplicationServiceImpl(ApplicationService):
         if existing:
             raise AppException(APPLICATION_003_APPLY)
 
-        await _validate_image_condition(data.imageKey, event.condition)
+        await self._validate_image_condition(data.imageKey, event.condition)
 
         application = Application(
             event_id=UUID(data.eventId),
