@@ -19,6 +19,7 @@ from app.application.schemas import (
     ReviewSubmissionReq,
 )
 from app.application.service import ApplicationService
+from app.blockchain.service import BlockchainService
 from app.core.config import settings
 from app.core.exceptions import (
     APPLICATION_001,
@@ -33,7 +34,6 @@ from app.core.exceptions import (
     AppException,
     ImageConditionNotMetError,
 )
-from app.services import blockchain as blockchain_service
 
 logger = logging.getLogger(__name__)
 
@@ -113,8 +113,11 @@ async def _validate_image_condition(image_key: str, condition: str) -> None:
 
 
 class ApplicationServiceImpl(ApplicationService):
-    def __init__(self, repo: ApplicationRepository) -> None:
+    def __init__(
+        self, repo: ApplicationRepository, blockchain: BlockchainService
+    ) -> None:
         self.repo = repo
+        self.blockchain = blockchain
 
     async def create_application(
         self,
@@ -153,7 +156,7 @@ class ApplicationServiceImpl(ApplicationService):
             reviewer = await self.repo.find_user_by_id(UUID(reviewer_id))
             reviewer_email = reviewer.email if reviewer else ""
             background_tasks.add_task(
-                blockchain_service.payout_safe,
+                self.blockchain.payout_safe,
                 event.contract_address,
                 data.walletAddress,
                 event.reward,

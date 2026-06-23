@@ -4,11 +4,12 @@ EventRepository and blockchain are mocked.
 """
 
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
 
+from app.blockchain.service import BlockchainService
 from app.core.exceptions import AUTH_007, EVENT_001, STORE_001, AppException
 from app.event.schemas import EventCreateReq
 from app.event.service_impl import EventServiceImpl
@@ -16,6 +17,10 @@ from app.event.service_impl import EventServiceImpl
 
 def _mock_repo() -> AsyncMock:
     return AsyncMock()
+
+
+def _make_blockchain() -> AsyncMock:
+    return AsyncMock(spec=BlockchainService)
 
 
 def _mock_store(owner_id: object = None) -> MagicMock:
@@ -52,7 +57,7 @@ class TestGetEvent:
     async def test_raises_event_001_when_not_found(self) -> None:
         repo = _mock_repo()
         repo.find_by_id.return_value = None
-        service = EventServiceImpl(repo)
+        service = EventServiceImpl(repo, _make_blockchain())
         with pytest.raises(AppException) as exc:
             await service.get_event(str(uuid4()))
         assert exc.value.code == EVENT_001.code
@@ -62,7 +67,7 @@ class TestGetEvent:
         event = _mock_event()
         repo = _mock_repo()
         repo.find_by_id.return_value = event
-        service = EventServiceImpl(repo)
+        service = EventServiceImpl(repo, _make_blockchain())
         result = await service.get_event(str(event.id))
         assert result is event
 
@@ -74,14 +79,14 @@ class TestListOwnerEvents:
         events = [_mock_event() for _ in range(2)]
         repo = _mock_repo()
         repo.find_by_owner_id.return_value = events
-        service = EventServiceImpl(repo)
+        service = EventServiceImpl(repo, _make_blockchain())
         result = await service.list_owner_events(str(owner_id))
         assert result == events
 
     async def test_returns_empty_list_when_no_events(self) -> None:
         repo = _mock_repo()
         repo.find_by_owner_id.return_value = []
-        service = EventServiceImpl(repo)
+        service = EventServiceImpl(repo, _make_blockchain())
         result = await service.list_owner_events(str(uuid4()))
         assert result == []
 
@@ -91,7 +96,7 @@ class TestDeleteEvent:
     async def test_raises_event_001_when_event_not_found(self) -> None:
         repo = _mock_repo()
         repo.find_by_id.return_value = None
-        service = EventServiceImpl(repo)
+        service = EventServiceImpl(repo, _make_blockchain())
         with pytest.raises(AppException) as exc:
             await service.delete_event(str(uuid4()), str(uuid4()))
         assert exc.value.code == EVENT_001.code
@@ -101,7 +106,7 @@ class TestDeleteEvent:
         repo = _mock_repo()
         repo.find_by_id.return_value = event
         repo.find_store_by_id.return_value = None
-        service = EventServiceImpl(repo)
+        service = EventServiceImpl(repo, _make_blockchain())
         with pytest.raises(AppException) as exc:
             await service.delete_event(str(event.id), str(uuid4()))
         assert exc.value.code == AUTH_007.code
@@ -113,7 +118,7 @@ class TestDeleteEvent:
         repo = _mock_repo()
         repo.find_by_id.return_value = event
         repo.find_store_by_id.return_value = store
-        service = EventServiceImpl(repo)
+        service = EventServiceImpl(repo, _make_blockchain())
         with pytest.raises(AppException) as exc:
             await service.delete_event(str(event.id), str(uuid4()))
         assert exc.value.code == AUTH_007.code
@@ -125,7 +130,7 @@ class TestDeleteEvent:
         repo = _mock_repo()
         repo.find_by_id.return_value = event
         repo.find_store_by_id.return_value = store
-        service = EventServiceImpl(repo)
+        service = EventServiceImpl(repo, _make_blockchain())
         await service.delete_event(str(event.id), str(owner_id))
         repo.delete.assert_awaited_once_with(event)
 
@@ -135,7 +140,7 @@ class TestCreateEvent:
     async def test_raises_store_001_when_store_not_found(self) -> None:
         repo = _mock_repo()
         repo.find_store_by_id.return_value = None
-        service = EventServiceImpl(repo)
+        service = EventServiceImpl(repo, _make_blockchain())
         data = EventCreateReq(
             storeId=str(uuid4()), title="E", condition="C", reward=0.001
         )
@@ -148,7 +153,7 @@ class TestCreateEvent:
         store = _mock_store(owner_id=owner_id)
         repo = _mock_repo()
         repo.find_store_by_id.return_value = store
-        service = EventServiceImpl(repo)
+        service = EventServiceImpl(repo, _make_blockchain())
         data = EventCreateReq(
             storeId=str(store.id), title="E", condition="C", reward=0.001
         )
@@ -168,16 +173,13 @@ class TestCreateEvent:
             return event
 
         repo.save.side_effect = _save
-        service = EventServiceImpl(repo)
+        blockchain = _make_blockchain()
+        blockchain.deploy_contract.return_value = "0xAddr"
+        service = EventServiceImpl(repo, blockchain)
         data = EventCreateReq(
             storeId=str(store.id), title="E", condition="C", reward=0.005
         )
-        with patch(
-            "app.event.service_impl.blockchain_service.deploy_contract",
-            new_callable=AsyncMock,
-            return_value="0xAddr",
-        ):
-            await service.create_event(str(owner_id), data)
+        await service.create_event(str(owner_id), data)
         assert len(saved) == 1
         assert saved[0].reward == int(0.005 * 10**18)
 
@@ -193,16 +195,13 @@ class TestCreateEvent:
             return event
 
         repo.save.side_effect = _save
-        service = EventServiceImpl(repo)
+        blockchain = _make_blockchain()
+        blockchain.deploy_contract.return_value = "0xDeployedAddr"
+        service = EventServiceImpl(repo, blockchain)
         data = EventCreateReq(
             storeId=str(store.id), title="E", condition="C", reward=0.001
         )
-        with patch(
-            "app.event.service_impl.blockchain_service.deploy_contract",
-            new_callable=AsyncMock,
-            return_value="0xDeployedAddr",
-        ):
-            await service.create_event(str(owner_id), data)
+        await service.create_event(str(owner_id), data)
         assert saved[0].contract_address == "0xDeployedAddr"
 
     async def test_calls_deploy_contract_once(self) -> None:
@@ -211,17 +210,14 @@ class TestCreateEvent:
         repo = _mock_repo()
         repo.find_store_by_id.return_value = store
         repo.save.side_effect = lambda e: e
-        service = EventServiceImpl(repo)
+        blockchain = _make_blockchain()
+        blockchain.deploy_contract.return_value = "0xAddr"
+        service = EventServiceImpl(repo, blockchain)
         data = EventCreateReq(
             storeId=str(store.id), title="E", condition="C", reward=0.001
         )
-        with patch(
-            "app.event.service_impl.blockchain_service.deploy_contract",
-            new_callable=AsyncMock,
-            return_value="0xAddr",
-        ) as mock_deploy:
-            await service.create_event(str(owner_id), data)
-        mock_deploy.assert_awaited_once()
+        await service.create_event(str(owner_id), data)
+        blockchain.deploy_contract.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -229,7 +225,7 @@ class TestListEventApplications:
     async def test_raises_event_001_when_event_not_found(self) -> None:
         repo = _mock_repo()
         repo.find_by_id.return_value = None
-        service = EventServiceImpl(repo)
+        service = EventServiceImpl(repo, _make_blockchain())
         with pytest.raises(AppException) as exc:
             await service.list_event_applications(
                 str(uuid4()), str(uuid4()), status_filter=None, page=0, size=10
@@ -241,7 +237,7 @@ class TestListEventApplications:
         repo = _mock_repo()
         repo.find_by_id.return_value = event
         repo.find_store_by_id.return_value = None
-        service = EventServiceImpl(repo)
+        service = EventServiceImpl(repo, _make_blockchain())
         with pytest.raises(AppException) as exc:
             await service.list_event_applications(
                 str(event.id), str(uuid4()), status_filter=None, page=0, size=10
@@ -255,7 +251,7 @@ class TestListEventApplications:
         repo = _mock_repo()
         repo.find_by_id.return_value = event
         repo.find_store_by_id.return_value = store
-        service = EventServiceImpl(repo)
+        service = EventServiceImpl(repo, _make_blockchain())
         with pytest.raises(AppException) as exc:
             await service.list_event_applications(
                 str(event.id), str(uuid4()), status_filter=None, page=0, size=10
@@ -270,7 +266,7 @@ class TestListEventApplications:
         repo.find_by_id.return_value = event
         repo.find_store_by_id.return_value = store
         repo.find_applications_by_event_id.return_value = ([], 0)
-        service = EventServiceImpl(repo)
+        service = EventServiceImpl(repo, _make_blockchain())
         summaries, total = await service.list_event_applications(
             str(event.id), str(owner_id), status_filter=None, page=0, size=10
         )
@@ -290,7 +286,7 @@ class TestListEventApplications:
         repo.find_applications_by_event_id.return_value = ([app], 1)
         repo.find_user_by_id.return_value = reviewer
         repo.find_submission_by_application_id.return_value = None
-        service = EventServiceImpl(repo)
+        service = EventServiceImpl(repo, _make_blockchain())
         summaries, total = await service.list_event_applications(
             str(event.id), str(owner_id), status_filter=None, page=0, size=10
         )

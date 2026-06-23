@@ -24,9 +24,9 @@ async def _deploy_or_none() -> str | None:
     if not settings.blockchain_rpc_url or not settings.server_private_key:
         return None
     try:
-        from app.services.blockchain import deploy_contract
+        from app.blockchain.service_impl import BlockchainServiceImpl
 
-        return await deploy_contract()
+        return await BlockchainServiceImpl().deploy_contract()
     except Exception:
         logger.exception("[SEED] contract deploy failed, skipping")
         return None
@@ -34,9 +34,9 @@ async def _deploy_or_none() -> str | None:
 
 async def _fund_contract(contract_address: str, amount_wei: int) -> None:
     try:
-        from app.services.blockchain import fund_contract
+        from app.blockchain.service_impl import BlockchainServiceImpl
 
-        await fund_contract(contract_address, amount_wei)
+        await BlockchainServiceImpl().fund_contract(contract_address, amount_wei)
     except Exception:
         logger.exception("[SEED] contract fund failed contract=%s", contract_address)
 

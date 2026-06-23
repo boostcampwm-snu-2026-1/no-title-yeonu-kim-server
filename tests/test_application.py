@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.models import Application, ReviewImage, ReviewSubmission
-from app.services import blockchain as blockchain_service
+from app.blockchain.service_impl import BlockchainServiceImpl
 from tests.conftest import (
     auth_headers,
     create_application,
@@ -35,10 +35,7 @@ class TestCreateApplication:
 
     @pytest.fixture(autouse=True)
     def mock_payout(self) -> Generator[None, None, None]:
-        with patch(
-            "app.services.blockchain.payout_safe",
-            new_callable=AsyncMock,
-        ):
+        with patch.object(BlockchainServiceImpl, "payout_safe", new_callable=AsyncMock):
             yield
 
     async def test_reviewer_creates_application_returns_200(
@@ -422,10 +419,7 @@ class TestSubmitReview:
 class TestCreateApplicationImageValidation:
     @pytest.fixture(autouse=True)
     def mock_payout(self) -> Generator[None, None, None]:
-        with patch(
-            "app.services.blockchain.payout_safe",
-            new_callable=AsyncMock,
-        ):
+        with patch.object(BlockchainServiceImpl, "payout_safe", new_callable=AsyncMock):
             yield
 
     def _make_claude_mock(self, verdict: str) -> tuple[MagicMock, AsyncMock]:
@@ -581,7 +575,7 @@ class TestApplicationBlockchainPayout:
         assert res.status_code == 200
         mock_add_task.assert_called_once()
         call_args = mock_add_task.call_args.args
-        assert call_args[0] is blockchain_service.payout_safe
+        assert call_args[0].__name__ == "payout_safe"
         assert call_args[1] == DEPLOYED_ADDRESS
         assert call_args[2] == FAKE_WALLET
         assert call_args[3] == 1_000_000_000_000_000
@@ -598,8 +592,8 @@ class TestApplicationBlockchainPayout:
             "walletAddress": FAKE_WALLET,
             "imageKey": "reviews/img.jpg",
         }
-        with patch(
-            "app.services.blockchain.payout_safe", new_callable=AsyncMock
+        with patch.object(
+            BlockchainServiceImpl, "payout_safe", new_callable=AsyncMock
         ) as mock_payout:
             res = await client.post(
                 "/api/applications", json=body, headers=auth_headers(reviewer.id)
@@ -619,7 +613,7 @@ class TestApplicationBlockchainPayout:
             "walletAddress": FAKE_WALLET,
             "imageKey": "reviews/img.jpg",
         }
-        with patch("app.services.blockchain.payout_safe", new_callable=AsyncMock):
+        with patch.object(BlockchainServiceImpl, "payout_safe", new_callable=AsyncMock):
             await client.post(
                 "/api/applications", json=body, headers=auth_headers(reviewer.id)
             )
@@ -643,8 +637,9 @@ class TestApplicationBlockchainPayout:
             "imageKey": "reviews/img.jpg",
         }
         # Mock the inner payout() — payout_safe catches its exception
-        with patch(
-            "app.services.blockchain.payout",
+        with patch.object(
+            BlockchainServiceImpl,
+            "payout",
             new_callable=AsyncMock,
             side_effect=RuntimeError("node unreachable"),
         ):
