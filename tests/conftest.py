@@ -22,8 +22,8 @@ from app.main import app
 from app.models.application import Application
 from app.models.email_verification import EmailVerification
 from app.models.event import Event
-from app.models.store import Store
 from app.models.user import User
+from app.store.models import Store
 
 DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 

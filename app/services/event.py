@@ -12,10 +12,10 @@ from app.core.exceptions import (
 from app.models.application import Application
 from app.models.event import Event
 from app.models.review_submission import ReviewSubmission
-from app.models.store import Store
 from app.models.user import User
 from app.schemas.event import ApplicationSummary, EventCreateReq
 from app.services import blockchain as blockchain_service
+from app.store.models import Store
 
 
 async def _get_store_or_404(db: AsyncSession, store_id: str) -> Store:

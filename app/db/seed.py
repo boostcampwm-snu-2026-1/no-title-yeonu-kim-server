@@ -17,8 +17,8 @@ from app.models.review_image import ReviewImage as ReviewImage  # noqa: F401
 from app.models.review_submission import (
     ReviewSubmission as ReviewSubmission,  # noqa: F401
 )
-from app.models.store import Store
 from app.models.user import User
+from app.store.models import Store
 
 logger = logging.getLogger(__name__)
 
