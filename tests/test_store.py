@@ -5,7 +5,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.store import Store
+from app.store.models import Store
 from tests.conftest import (
     auth_headers,
     create_event,
