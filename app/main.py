@@ -8,10 +8,11 @@ from fastapi.responses import JSONResponse
 
 from app.application.router import router as application_router
 from app.auth.router import router as auth_router
+from app.blockchain.service_impl import BlockchainServiceImpl
 from app.core.config import settings
 from app.core.exceptions import AppException
-from app.db.seed import reset_and_seed
-from app.db.session import engine
+from app.db.seed import Seeder
+from app.db.session import AsyncSessionLocal, engine
 from app.event.router import router as event_router
 from app.s3.router import router as s3_router
 from app.store.router import router as store_router
@@ -20,7 +21,12 @@ from app.store.router import router as store_router
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if settings.seed_db:
-        await reset_and_seed(engine)
+        blockchain = (
+            BlockchainServiceImpl()
+            if settings.blockchain_rpc_url and settings.server_private_key
+            else None
+        )
+        await Seeder(engine, AsyncSessionLocal, blockchain).run()
     yield
 
 
