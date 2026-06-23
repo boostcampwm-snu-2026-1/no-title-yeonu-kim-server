@@ -16,6 +16,7 @@ from app.application.schemas import (
     ReviewSubmissionReq,
 )
 from app.application.service import ApplicationService
+from app.blockchain.service import BlockchainService
 from app.core.config import settings
 from app.core.exceptions import (
     APPLICATION_001,
@@ -29,7 +30,6 @@ from app.core.exceptions import (
     AppException,
     ImageConditionNotMetError,
 )
-from app.services import blockchain as blockchain_service
 from app.s3.service import S3Service
 
 logger = logging.getLogger(__name__)
@@ -48,10 +48,6 @@ def _to_media_type(content_type: str) -> _MediaType:
 
 
 class ApplicationServiceImpl(ApplicationService):
-<<<<<<< Updated upstream
-    def __init__(self, repo: ApplicationRepository) -> None:
-        self.repo = repo
-=======
     def __init__(
         self,
         repo: ApplicationRepository,
@@ -106,9 +102,8 @@ class ApplicationServiceImpl(ApplicationService):
         if (
             not isinstance(block, anthropic.types.TextBlock)
             or "FAIL" in block.text.upper()
-        ):  # noqa: E501
+        ):
             raise ImageConditionNotMetError()
->>>>>>> Stashed changes
 
     async def create_application(
         self,
@@ -147,7 +142,7 @@ class ApplicationServiceImpl(ApplicationService):
             reviewer = await self.repo.find_user_by_id(UUID(reviewer_id))
             reviewer_email = reviewer.email if reviewer else ""
             background_tasks.add_task(
-                blockchain_service.payout_safe,
+                self.blockchain.payout_safe,
                 event.contract_address,
                 data.walletAddress,
                 event.reward,

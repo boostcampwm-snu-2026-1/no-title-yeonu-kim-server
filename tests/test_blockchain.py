@@ -1,5 +1,5 @@
 """
-Unit tests for app/services/blockchain.py.
+Unit tests for app/blockchain/service_impl.py.
 All web3 network calls are mocked — no live node required.
 """
 
@@ -12,8 +12,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-import app.services.blockchain as bc_module
-from app.services.blockchain import deploy_contract, payout, payout_safe
+import app.blockchain.service_impl as bc_module
+from app.blockchain.service_impl import BlockchainServiceImpl
 
 FAKE_ABI: list[dict[str, Any]] = [
     {
@@ -51,7 +51,7 @@ def artifact(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def patched_settings(artifact: Path) -> Generator[MagicMock, None, None]:
-    with patch("app.services.blockchain.settings") as s:
+    with patch("app.blockchain.service_impl.settings") as s:
         s.contract_artifact_path = str(artifact)
         s.blockchain_rpc_url = "http://localhost:8545"
         s.server_private_key = FAKE_PRIVATE_KEY
@@ -87,6 +87,7 @@ def make_w3_mock(
     w3.eth.wait_for_transaction_receipt = AsyncMock(
         return_value={"contractAddress": contract_address}
     )
+    w3.eth.get_balance = AsyncMock(return_value=0)
     return w3
 
 
@@ -100,21 +101,21 @@ class TestDeployContract:
     async def test_returns_contract_address(self, patched_settings: MagicMock) -> None:
         w3 = make_w3_mock()
         with (
-            patch("app.services.blockchain._make_w3", return_value=w3),
-            patch("app.services.blockchain.AsyncWeb3") as mock_cls,
+            patch("app.blockchain.service_impl._make_w3", return_value=w3),
+            patch("app.blockchain.service_impl.AsyncWeb3") as mock_cls,
         ):
             mock_cls.to_checksum_address.side_effect = lambda a: a
-            result = await deploy_contract()
+            result = await BlockchainServiceImpl().deploy_contract()
         assert result == FAKE_CONTRACT_ADDRESS
 
     async def test_uses_500k_gas(self, patched_settings: MagicMock) -> None:
         w3 = make_w3_mock()
         with (
-            patch("app.services.blockchain._make_w3", return_value=w3),
-            patch("app.services.blockchain.AsyncWeb3") as mock_cls,
+            patch("app.blockchain.service_impl._make_w3", return_value=w3),
+            patch("app.blockchain.service_impl.AsyncWeb3") as mock_cls,
         ):
             mock_cls.to_checksum_address.side_effect = lambda a: a
-            await deploy_contract()
+            await BlockchainServiceImpl().deploy_contract()
 
         build_tx = (
             w3.eth.contract.return_value.constructor.return_value.build_transaction
@@ -127,30 +128,30 @@ class TestDeployContract:
     ) -> None:
         w3 = make_w3_mock()
         with (
-            patch("app.services.blockchain._make_w3", return_value=w3),
-            patch("app.services.blockchain.AsyncWeb3") as mock_cls,
-            caplog.at_level(logging.INFO, logger="app.services.blockchain"),
+            patch("app.blockchain.service_impl._make_w3", return_value=w3),
+            patch("app.blockchain.service_impl.AsyncWeb3") as mock_cls,
+            caplog.at_level(logging.INFO, logger="app.blockchain.service_impl"),
         ):
             mock_cls.to_checksum_address.side_effect = lambda a: a
-            await deploy_contract()
+            await BlockchainServiceImpl().deploy_contract()
         assert FAKE_CONTRACT_ADDRESS in caplog.text
 
     async def test_artifact_missing_raises_file_not_found(self, tmp_path: Path) -> None:
-        with patch("app.services.blockchain.settings") as s:
+        with patch("app.blockchain.service_impl.settings") as s:
             s.contract_artifact_path = str(tmp_path / "nonexistent.json")
             s.blockchain_rpc_url = "http://localhost:8545"
             s.server_private_key = FAKE_PRIVATE_KEY
             with pytest.raises(FileNotFoundError):
-                await deploy_contract()
+                await BlockchainServiceImpl().deploy_contract()
 
     async def test_sends_raw_transaction(self, patched_settings: MagicMock) -> None:
         w3 = make_w3_mock()
         with (
-            patch("app.services.blockchain._make_w3", return_value=w3),
-            patch("app.services.blockchain.AsyncWeb3") as mock_cls,
+            patch("app.blockchain.service_impl._make_w3", return_value=w3),
+            patch("app.blockchain.service_impl.AsyncWeb3") as mock_cls,
         ):
             mock_cls.to_checksum_address.side_effect = lambda a: a
-            await deploy_contract()
+            await BlockchainServiceImpl().deploy_contract()
         w3.eth.send_raw_transaction.assert_awaited_once_with(b"signed_tx")
 
 
@@ -164,11 +165,13 @@ class TestPayout:
     async def test_returns_tx_hash_hex(self, patched_settings: MagicMock) -> None:
         w3 = make_w3_mock()
         with (
-            patch("app.services.blockchain._make_w3", return_value=w3),
-            patch("app.services.blockchain.AsyncWeb3") as mock_cls,
+            patch("app.blockchain.service_impl._make_w3", return_value=w3),
+            patch("app.blockchain.service_impl.AsyncWeb3") as mock_cls,
         ):
             mock_cls.to_checksum_address.side_effect = lambda a: a
-            result = await payout(FAKE_CONTRACT_ADDRESS, FAKE_WALLET, 1_000_000)
+            result = await BlockchainServiceImpl().payout(
+                FAKE_CONTRACT_ADDRESS, FAKE_WALLET, 1_000_000
+            )
         assert result == FAKE_TX_HASH.hex()
 
     async def test_release_called_with_correct_args(
@@ -176,11 +179,13 @@ class TestPayout:
     ) -> None:
         w3 = make_w3_mock()
         with (
-            patch("app.services.blockchain._make_w3", return_value=w3),
-            patch("app.services.blockchain.AsyncWeb3") as mock_cls,
+            patch("app.blockchain.service_impl._make_w3", return_value=w3),
+            patch("app.blockchain.service_impl.AsyncWeb3") as mock_cls,
         ):
             mock_cls.to_checksum_address.side_effect = lambda a: a
-            await payout(FAKE_CONTRACT_ADDRESS, FAKE_WALLET, 999)
+            await BlockchainServiceImpl().payout(
+                FAKE_CONTRACT_ADDRESS, FAKE_WALLET, 999
+            )
         w3.eth.contract.return_value.functions.release.assert_called_once_with(
             FAKE_WALLET, 999
         )
@@ -188,11 +193,11 @@ class TestPayout:
     async def test_uses_100k_gas(self, patched_settings: MagicMock) -> None:
         w3 = make_w3_mock()
         with (
-            patch("app.services.blockchain._make_w3", return_value=w3),
-            patch("app.services.blockchain.AsyncWeb3") as mock_cls,
+            patch("app.blockchain.service_impl._make_w3", return_value=w3),
+            patch("app.blockchain.service_impl.AsyncWeb3") as mock_cls,
         ):
             mock_cls.to_checksum_address.side_effect = lambda a: a
-            await payout(FAKE_CONTRACT_ADDRESS, FAKE_WALLET, 1)
+            await BlockchainServiceImpl().payout(FAKE_CONTRACT_ADDRESS, FAKE_WALLET, 1)
 
         release_call = w3.eth.contract.return_value.functions.release.return_value
         tx_kwargs: dict[str, Any] = release_call.build_transaction.call_args[0][0]
@@ -203,12 +208,12 @@ class TestPayout:
     ) -> None:
         w3 = make_w3_mock()
         with (
-            patch("app.services.blockchain._make_w3", return_value=w3),
-            patch("app.services.blockchain.AsyncWeb3") as mock_cls,
-            caplog.at_level(logging.INFO, logger="app.services.blockchain"),
+            patch("app.blockchain.service_impl._make_w3", return_value=w3),
+            patch("app.blockchain.service_impl.AsyncWeb3") as mock_cls,
+            caplog.at_level(logging.INFO, logger="app.blockchain.service_impl"),
         ):
             mock_cls.to_checksum_address.side_effect = lambda a: a
-            await payout(FAKE_CONTRACT_ADDRESS, FAKE_WALLET, 1)
+            await BlockchainServiceImpl().payout(FAKE_CONTRACT_ADDRESS, FAKE_WALLET, 1)
         assert FAKE_TX_HASH.hex() in caplog.text
 
 
@@ -222,12 +227,12 @@ class TestPayoutSafe:
     async def test_success_does_not_raise(self, patched_settings: MagicMock) -> None:
         w3 = make_w3_mock()
         with (
-            patch("app.services.blockchain._make_w3", return_value=w3),
-            patch("app.services.blockchain.AsyncWeb3") as mock_cls,
+            patch("app.blockchain.service_impl._make_w3", return_value=w3),
+            patch("app.blockchain.service_impl.AsyncWeb3") as mock_cls,
+            patch("app.blockchain.service_impl.send_email", new_callable=AsyncMock),
         ):
             mock_cls.to_checksum_address.side_effect = lambda a: a
-            # Must complete without exception
-            await payout_safe(
+            await BlockchainServiceImpl().payout_safe(
                 FAKE_CONTRACT_ADDRESS,
                 FAKE_WALLET,
                 1_000,
@@ -236,13 +241,14 @@ class TestPayoutSafe:
             )
 
     async def test_exception_is_swallowed(self) -> None:
-        with patch(
-            "app.services.blockchain.payout",
+        service = BlockchainServiceImpl()
+        with patch.object(
+            BlockchainServiceImpl,
+            "payout",
             new_callable=AsyncMock,
             side_effect=RuntimeError("node down"),
         ):
-            # Must not propagate
-            await payout_safe(
+            await service.payout_safe(
                 FAKE_CONTRACT_ADDRESS,
                 FAKE_WALLET,
                 1_000,
@@ -251,15 +257,17 @@ class TestPayoutSafe:
             )
 
     async def test_exception_is_logged(self, caplog: pytest.LogCaptureFixture) -> None:
+        service = BlockchainServiceImpl()
         with (
-            patch(
-                "app.services.blockchain.payout",
+            patch.object(
+                BlockchainServiceImpl,
+                "payout",
                 new_callable=AsyncMock,
                 side_effect=RuntimeError("connection refused"),
             ),
-            caplog.at_level(logging.ERROR, logger="app.services.blockchain"),
+            caplog.at_level(logging.ERROR, logger="app.blockchain.service_impl"),
         ):
-            await payout_safe(
+            await service.payout_safe(
                 FAKE_CONTRACT_ADDRESS,
                 FAKE_WALLET,
                 1_000,
@@ -283,23 +291,23 @@ class TestArtifactCache:
         """_artifact_cache must be None before first call and set after."""
         w3 = make_w3_mock()
         with (
-            patch("app.services.blockchain._make_w3", return_value=w3),
-            patch("app.services.blockchain.AsyncWeb3") as mock_cls,
+            patch("app.blockchain.service_impl._make_w3", return_value=w3),
+            patch("app.blockchain.service_impl.AsyncWeb3") as mock_cls,
         ):
             mock_cls.to_checksum_address.side_effect = lambda a: a
             assert bc_module._artifact_cache is None
-            await deploy_contract()
+            await BlockchainServiceImpl().deploy_contract()
         assert bc_module._artifact_cache is not None
 
     async def test_second_call_reuses_cache(self, patched_settings: MagicMock) -> None:
         """A second deploy_contract() must return the same cached ABI object."""
         w3 = make_w3_mock()
         with (
-            patch("app.services.blockchain._make_w3", return_value=w3),
-            patch("app.services.blockchain.AsyncWeb3") as mock_cls,
+            patch("app.blockchain.service_impl._make_w3", return_value=w3),
+            patch("app.blockchain.service_impl.AsyncWeb3") as mock_cls,
         ):
             mock_cls.to_checksum_address.side_effect = lambda a: a
-            await deploy_contract()
+            await BlockchainServiceImpl().deploy_contract()
             cache_after_first = bc_module._artifact_cache
-            await deploy_contract()
+            await BlockchainServiceImpl().deploy_contract()
         assert bc_module._artifact_cache is cache_after_first

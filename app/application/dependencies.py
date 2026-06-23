@@ -5,6 +5,8 @@ from app.application.repository import ApplicationRepository
 from app.application.repository_impl import ApplicationRepositoryImpl
 from app.application.service import ApplicationService
 from app.application.service_impl import ApplicationServiceImpl
+from app.blockchain.dependencies import get_blockchain_service
+from app.blockchain.service import BlockchainService
 from app.db.session import get_db
 from app.s3.dependencies import get_s3_service
 from app.s3.service import S3Service
