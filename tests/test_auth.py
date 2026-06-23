@@ -3,8 +3,8 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import create_refresh_token, verify_password
 from app.auth.models import EmailVerification, User
+from app.core.security import create_refresh_token, verify_password
 from tests.conftest import auth_headers, create_user, create_verification
 
 
