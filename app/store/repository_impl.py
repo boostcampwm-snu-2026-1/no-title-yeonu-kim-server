@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.event import Event
+from app.event.models import Event
 from app.store.models import Store
 from app.store.repository import StoreRepository
 

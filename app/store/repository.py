@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from uuid import UUID
 
-from app.models.event import Event
+from app.event.models import Event
 from app.store.models import Store
 
 

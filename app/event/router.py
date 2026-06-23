@@ -1,25 +1,24 @@
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_login
-from app.db.session import get_db
-from app.schemas.event import (
+from app.event.dependencies import get_event_service
+from app.event.schemas import (
     EventApplicationsResp,
     EventCreateReq,
     EventListResp,
     EventResp,
 )
-from app.services import event as event_service
+from app.event.service import EventService
 
 router = APIRouter(prefix="/event", tags=["Event"])
 
 
 @router.get("/owner", response_model=EventListResp)
 async def get_owner_events(
-    db: AsyncSession = Depends(get_db),
     owner_id: str = Depends(require_login),
+    service: EventService = Depends(get_event_service),
 ) -> EventListResp:
-    events = await event_service.list_owner_events(db, owner_id)
+    events = await service.list_owner_events(owner_id)
     return EventListResp(
         events=[
             EventResp(
@@ -35,12 +34,13 @@ async def get_owner_events(
     )
 
 
-@router.get("/{eventId}", response_model=EventResp)
-async def get_event(
-    eventId: str,
-    db: AsyncSession = Depends(get_db),
+@router.post("", response_model=EventResp)
+async def create_event(
+    body: EventCreateReq,
+    owner_id: str = Depends(require_login),
+    service: EventService = Depends(get_event_service),
 ) -> EventResp:
-    event = await event_service.get_event_or_404(db, eventId)
+    event = await service.create_event(owner_id, body)
     return EventResp(
         id=str(event.id),
         title=event.title,
@@ -49,6 +49,31 @@ async def get_event(
         isActive=event.is_active,
         contractAddress=event.contract_address,
     )
+
+
+@router.get("/{eventId}", response_model=EventResp)
+async def get_event(
+    eventId: str,
+    service: EventService = Depends(get_event_service),
+) -> EventResp:
+    event = await service.get_event(eventId)
+    return EventResp(
+        id=str(event.id),
+        title=event.title,
+        condition=event.condition,
+        reward=event.reward / 10**18,
+        isActive=event.is_active,
+        contractAddress=event.contract_address,
+    )
+
+
+@router.delete("/{eventId}", response_model=None)
+async def delete_event(
+    eventId: str,
+    owner_id: str = Depends(require_login),
+    service: EventService = Depends(get_event_service),
+) -> None:
+    await service.delete_event(eventId, owner_id)
 
 
 @router.get("/{eventId}/applications", response_model=EventApplicationsResp)
@@ -57,11 +82,15 @@ async def get_event_applications(
     status: str | None = Query(default=None),
     page: int = Query(default=0, ge=0),
     size: int = Query(default=20, ge=1),
-    db: AsyncSession = Depends(get_db),
     owner_id: str = Depends(require_login),
+    service: EventService = Depends(get_event_service),
 ) -> EventApplicationsResp:
-    applications, total = await event_service.list_event_applications(
-        db, eventId, owner_id, status, page, size
+    applications, total = await service.list_event_applications(
+        eventId,
+        owner_id,
+        status_filter=status,
+        page=page,
+        size=size,
     )
     total_pages = max(1, (total + size - 1) // size)
     return EventApplicationsResp(
@@ -70,30 +99,4 @@ async def get_event_applications(
         currentPage=page,
         totalPages=total_pages,
         hasNext=(page + 1) < total_pages,
-    )
-
-
-@router.delete("/{eventId}", response_model=None)
-async def delete_event(
-    eventId: str,
-    db: AsyncSession = Depends(get_db),
-    owner_id: str = Depends(require_login),
-) -> None:
-    await event_service.delete_event(db, eventId, owner_id)
-
-
-@router.post("", response_model=EventResp)
-async def create_event(
-    body: EventCreateReq,
-    db: AsyncSession = Depends(get_db),
-    owner_id: str = Depends(require_login),
-) -> EventResp:
-    event = await event_service.create_event(db, owner_id, body)
-    return EventResp(
-        id=str(event.id),
-        title=event.title,
-        condition=event.condition,
-        reward=event.reward / 10**18,
-        isActive=event.is_active,
-        contractAddress=event.contract_address,
     )
