@@ -1,10 +1,9 @@
 from abc import ABC, abstractmethod
 from uuid import UUID
 
+from app.application.models import Application, ReviewSubmission
+from app.auth.models import User
 from app.event.models import Event
-from app.models.application import Application
-from app.models.review_submission import ReviewSubmission
-from app.models.user import User
 from app.store.models import Store
 
 

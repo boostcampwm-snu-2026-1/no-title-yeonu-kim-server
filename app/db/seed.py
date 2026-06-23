@@ -4,20 +4,17 @@ from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from app.application.models import (  # noqa: F401
+    Application,
+    ReviewImage,
+    ReviewSubmission,
+)
+from app.auth.models import EmailVerification, User  # noqa: F401
 from app.core.config import settings
 from app.core.security import get_password_hash
 from app.db.base import Base
 from app.db.session import AsyncSessionLocal
-from app.models.application import Application as Application  # noqa: F401
-from app.models.email_verification import (
-    EmailVerification as EmailVerification,  # noqa: F401
-)
-from app.models.event import Event
-from app.models.review_image import ReviewImage as ReviewImage  # noqa: F401
-from app.models.review_submission import (
-    ReviewSubmission as ReviewSubmission,  # noqa: F401
-)
-from app.models.user import User
+from app.event.models import Event
 from app.store.models import Store
 
 logger = logging.getLogger(__name__)

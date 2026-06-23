@@ -9,9 +9,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.application import Application
-from app.models.review_image import ReviewImage
-from app.models.review_submission import ReviewSubmission
+from app.application.models import Application, ReviewImage, ReviewSubmission
 from app.services import blockchain as blockchain_service
 from tests.conftest import (
     auth_headers,
@@ -30,7 +28,7 @@ class TestCreateApplication:
     @pytest.fixture(autouse=True)
     def mock_image_validation(self) -> Generator[None, None, None]:
         with patch(
-            "app.services.application._validate_image_condition",
+            "app.application.service_impl._validate_image_condition",
             new_callable=AsyncMock,
         ):
             yield
@@ -453,11 +451,11 @@ class TestCreateApplicationImageValidation:
         _, mock_client = self._make_claude_mock("PASS")
         with (
             patch(
-                "app.services.application._download_image",
+                "app.application.service_impl._download_image",
                 new_callable=AsyncMock,
                 return_value=(b"fake-image", "image/jpeg"),
             ),
-            patch("app.services.application.anthropic.AsyncAnthropic") as mock_cls,
+            patch("app.application.service_impl.anthropic.AsyncAnthropic") as mock_cls,
         ):
             mock_cls.return_value = mock_client
             res = await client.post(
@@ -481,11 +479,11 @@ class TestCreateApplicationImageValidation:
         _, mock_client = self._make_claude_mock("FAIL")
         with (
             patch(
-                "app.services.application._download_image",
+                "app.application.service_impl._download_image",
                 new_callable=AsyncMock,
                 return_value=(b"fake-image", "image/jpeg"),
             ),
-            patch("app.services.application.anthropic.AsyncAnthropic") as mock_cls,
+            patch("app.application.service_impl.anthropic.AsyncAnthropic") as mock_cls,
         ):
             mock_cls.return_value = mock_client
             res = await client.post(
@@ -510,11 +508,11 @@ class TestCreateApplicationImageValidation:
         _, mock_client = self._make_claude_mock("FAIL")
         with (
             patch(
-                "app.services.application._download_image",
+                "app.application.service_impl._download_image",
                 new_callable=AsyncMock,
                 return_value=(b"fake-image", "image/jpeg"),
             ),
-            patch("app.services.application.anthropic.AsyncAnthropic") as mock_cls,
+            patch("app.application.service_impl.anthropic.AsyncAnthropic") as mock_cls,
         ):
             mock_cls.return_value = mock_client
             await client.post(
@@ -540,7 +538,7 @@ class TestCreateApplicationImageValidation:
             "imageKey": "reviews/missing.jpg",
         }
         with patch(
-            "app.services.application._download_image",
+            "app.application.service_impl._download_image",
             new_callable=AsyncMock,
             side_effect=AppException(IMAGE_002),
         ):
@@ -557,7 +555,7 @@ class TestApplicationBlockchainPayout:
     @pytest.fixture(autouse=True)
     def mock_image_validation(self) -> Generator[None, None, None]:
         with patch(
-            "app.services.application._validate_image_condition",
+            "app.application.service_impl._validate_image_condition",
             new_callable=AsyncMock,
         ):
             yield

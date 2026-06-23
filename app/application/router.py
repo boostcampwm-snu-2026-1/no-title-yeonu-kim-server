@@ -1,14 +1,13 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_login
-from app.db.session import get_db
-from app.schemas.application import (
+from app.application.dependencies import get_application_service
+from app.application.schemas import (
     ApplicationCreateReq,
     ApplicationListResp,
     ReviewSubmissionReq,
 )
-from app.services import application as application_service
+from app.application.service import ApplicationService
 
 router = APIRouter(tags=["Application"])
 
@@ -17,24 +16,20 @@ router = APIRouter(tags=["Application"])
 async def create_application(
     body: ApplicationCreateReq,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
     reviewer_id: str = Depends(require_login),
+    service: ApplicationService = Depends(get_application_service),
 ) -> None:
-    await application_service.create_application(
-        db, reviewer_id, body, background_tasks
-    )
+    await service.create_application(reviewer_id, body, background_tasks)
 
 
 @router.get("/application", response_model=ApplicationListResp)
 async def get_my_applications(
     page: int = Query(default=0, ge=0),
     size: int = Query(default=20, ge=1),
-    db: AsyncSession = Depends(get_db),
     reviewer_id: str = Depends(require_login),
+    service: ApplicationService = Depends(get_application_service),
 ) -> ApplicationListResp:
-    applications, total = await application_service.list_my_applications(
-        db, reviewer_id, page, size
-    )
+    applications, total = await service.list_my_applications(reviewer_id, page, size)
     total_pages = max(1, (total + size - 1) // size)
     return ApplicationListResp(
         applications=applications,
@@ -48,17 +43,17 @@ async def get_my_applications(
 @router.delete("/application/{applicationId}", response_model=None)
 async def cancel_application(
     applicationId: str,
-    db: AsyncSession = Depends(get_db),
     user_id: str = Depends(require_login),
+    service: ApplicationService = Depends(get_application_service),
 ) -> None:
-    await application_service.cancel_application(db, applicationId, user_id)
+    await service.cancel_application(applicationId, user_id)
 
 
 @router.post("/application/{applicationId}/submission", response_model=None)
 async def submit_review(
     applicationId: str,
     body: ReviewSubmissionReq,
-    db: AsyncSession = Depends(get_db),
     user_id: str = Depends(require_login),
+    service: ApplicationService = Depends(get_application_service),
 ) -> None:
-    await application_service.submit_review(db, applicationId, user_id, body)
+    await service.submit_review(applicationId, user_id, body)

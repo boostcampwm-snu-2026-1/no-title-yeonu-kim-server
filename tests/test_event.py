@@ -7,8 +7,8 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.event import Event
-from app.models.review_submission import ReviewSubmission
+from app.application.models import ReviewSubmission
+from app.event.models import Event
 from tests.conftest import (
     auth_headers,
     create_application,

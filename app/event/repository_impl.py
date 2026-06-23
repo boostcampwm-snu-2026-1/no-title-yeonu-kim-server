@@ -4,11 +4,10 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.application.models import Application, ReviewSubmission
+from app.auth.models import User
 from app.event.models import Event
 from app.event.repository import EventRepository
-from app.models.application import Application
-from app.models.review_submission import ReviewSubmission
-from app.models.user import User
 from app.store.models import Store
 
 

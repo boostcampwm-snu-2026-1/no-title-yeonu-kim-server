@@ -13,16 +13,15 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import StaticPool
 
+from app.application.models import Application
 from app.auth.dependencies import get_email_sender
+from app.auth.models import EmailVerification, User
 from app.core.security import create_access_token, get_password_hash
 from app.db.base import Base
 from app.db.session import get_db
 from app.email.service import EmailSender
+from app.event.models import Event
 from app.main import app
-from app.models.application import Application
-from app.models.email_verification import EmailVerification
-from app.models.event import Event
-from app.models.user import User
 from app.store.models import Store
 
 DATABASE_URL = "sqlite+aiosqlite:///:memory:"
