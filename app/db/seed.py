@@ -9,7 +9,6 @@ from app.core.security import get_password_hash
 from app.db.base import Base
 from app.db.session import AsyncSessionLocal
 from app.models.application import Application as Application  # noqa: F401
-from app.models.deposit import Deposit as Deposit  # noqa: F401
 from app.models.email_verification import (
     EmailVerification as EmailVerification,  # noqa: F401
 )

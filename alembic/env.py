@@ -19,7 +19,6 @@ if config.config_file_name is not None:
 from app.core.config import settings
 from app.db.base import Base
 import app.models.application  # noqa: F401
-import app.models.deposit  # noqa: F401
 import app.models.email_verification  # noqa: F401
 import app.models.event  # noqa: F401
 import app.models.review_image  # noqa: F401
