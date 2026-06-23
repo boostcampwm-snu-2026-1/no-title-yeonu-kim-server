@@ -1,6 +1,8 @@
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.blockchain.dependencies import get_blockchain_service
+from app.blockchain.service import BlockchainService
 from app.db.session import get_db
 from app.event.repository import EventRepository
 from app.event.repository_impl import EventRepositoryImpl
@@ -14,5 +16,6 @@ def get_event_repository(db: AsyncSession = Depends(get_db)) -> EventRepository:
 
 def get_event_service(
     repo: EventRepository = Depends(get_event_repository),
+    blockchain: BlockchainService = Depends(get_blockchain_service),
 ) -> EventService:
-    return EventServiceImpl(repo)
+    return EventServiceImpl(repo, blockchain)

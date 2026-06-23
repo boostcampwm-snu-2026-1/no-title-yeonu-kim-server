@@ -9,3 +9,6 @@ class S3Service(ABC):
     def generate_presigned_upload_url(
         self, file_name: str, file_type: S3FileType, content_type: str
     ) -> S3PresignedUploadResp: ...
+
+    @abstractmethod
+    async def download_private(self, image_key: str) -> tuple[bytes, str]: ...

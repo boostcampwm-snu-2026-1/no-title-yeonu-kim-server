@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 
-from app.api.v1.router import router as api_router
+from app.application.router import router as application_router
 from app.auth.router import router as auth_router
 from app.core.config import settings
 from app.core.exceptions import AppException
@@ -30,7 +30,7 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(s3_router, prefix="/api")
 app.include_router(store_router, prefix="/api")
 app.include_router(event_router, prefix="/api")
-app.include_router(api_router, prefix="/api")
+app.include_router(application_router, prefix="/api")
 
 
 @app.exception_handler(AppException)

@@ -4,20 +4,17 @@ from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from app.application.models import (  # noqa: F401
+    Application,
+    ReviewImage,
+    ReviewSubmission,
+)
+from app.auth.models import EmailVerification, User  # noqa: F401
 from app.core.config import settings
 from app.core.security import get_password_hash
 from app.db.base import Base
 from app.db.session import AsyncSessionLocal
-from app.models.application import Application as Application  # noqa: F401
-from app.models.email_verification import (
-    EmailVerification as EmailVerification,  # noqa: F401
-)
-from app.models.event import Event
-from app.models.review_image import ReviewImage as ReviewImage  # noqa: F401
-from app.models.review_submission import (
-    ReviewSubmission as ReviewSubmission,  # noqa: F401
-)
-from app.models.user import User
+from app.event.models import Event
 from app.store.models import Store
 
 logger = logging.getLogger(__name__)
@@ -27,9 +24,9 @@ async def _deploy_or_none() -> str | None:
     if not settings.blockchain_rpc_url or not settings.server_private_key:
         return None
     try:
-        from app.services.blockchain import deploy_contract
+        from app.blockchain.service_impl import BlockchainServiceImpl
 
-        return await deploy_contract()
+        return await BlockchainServiceImpl().deploy_contract()
     except Exception:
         logger.exception("[SEED] contract deploy failed, skipping")
         return None
@@ -37,9 +34,9 @@ async def _deploy_or_none() -> str | None:
 
 async def _fund_contract(contract_address: str, amount_wei: int) -> None:
     try:
-        from app.services.blockchain import fund_contract
+        from app.blockchain.service_impl import BlockchainServiceImpl
 
-        await fund_contract(contract_address, amount_wei)
+        await BlockchainServiceImpl().fund_contract(contract_address, amount_wei)
     except Exception:
         logger.exception("[SEED] contract fund failed contract=%s", contract_address)
 

@@ -1,18 +1,18 @@
 from collections.abc import Generator
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
-import anthropic
 import pytest
 from fastapi import BackgroundTasks
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.application import Application
-from app.models.review_image import ReviewImage
-from app.models.review_submission import ReviewSubmission
-from app.services import blockchain as blockchain_service
+from app.application.models import Application, ReviewImage, ReviewSubmission
+from app.application.service_impl import ApplicationServiceImpl
+from app.blockchain.service_impl import BlockchainServiceImpl
+from app.ocr.service_impl import OCRServiceImpl
+from app.s3.service_impl import S3ServiceImpl
 from tests.conftest import (
     auth_headers,
     create_application,
@@ -29,18 +29,14 @@ FAKE_WALLET = "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12"
 class TestCreateApplication:
     @pytest.fixture(autouse=True)
     def mock_image_validation(self) -> Generator[None, None, None]:
-        with patch(
-            "app.services.application._validate_image_condition",
-            new_callable=AsyncMock,
+        with patch.object(
+            ApplicationServiceImpl, "_validate_image_condition", new_callable=AsyncMock
         ):
             yield
 
     @pytest.fixture(autouse=True)
     def mock_payout(self) -> Generator[None, None, None]:
-        with patch(
-            "app.services.blockchain.payout_safe",
-            new_callable=AsyncMock,
-        ):
+        with patch.object(BlockchainServiceImpl, "payout_safe", new_callable=AsyncMock):
             yield
 
     async def test_reviewer_creates_application_returns_200(
@@ -424,19 +420,8 @@ class TestSubmitReview:
 class TestCreateApplicationImageValidation:
     @pytest.fixture(autouse=True)
     def mock_payout(self) -> Generator[None, None, None]:
-        with patch(
-            "app.services.blockchain.payout_safe",
-            new_callable=AsyncMock,
-        ):
+        with patch.object(BlockchainServiceImpl, "payout_safe", new_callable=AsyncMock):
             yield
-
-    def _make_claude_mock(self, verdict: str) -> tuple[MagicMock, AsyncMock]:
-        block = anthropic.types.TextBlock(text=verdict, type="text")
-        response = MagicMock()
-        response.content = [block]
-        mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=response)
-        return response, mock_client
 
     async def test_image_condition_pass_returns_200(
         self, client: AsyncClient, db: AsyncSession
@@ -450,16 +435,20 @@ class TestCreateApplicationImageValidation:
             "walletAddress": "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12",
             "imageKey": "reviews/food.jpg",
         }
-        _, mock_client = self._make_claude_mock("PASS")
         with (
-            patch(
-                "app.services.application._download_image",
+            patch.object(
+                S3ServiceImpl,
+                "download_private",
                 new_callable=AsyncMock,
                 return_value=(b"fake-image", "image/jpeg"),
             ),
-            patch("app.services.application.anthropic.AsyncAnthropic") as mock_cls,
+            patch.object(
+                OCRServiceImpl,
+                "check_condition",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
         ):
-            mock_cls.return_value = mock_client
             res = await client.post(
                 "/api/applications", json=body, headers=auth_headers(reviewer.id)
             )
@@ -478,16 +467,20 @@ class TestCreateApplicationImageValidation:
             "walletAddress": "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12",
             "imageKey": "reviews/not_food.jpg",
         }
-        _, mock_client = self._make_claude_mock("FAIL")
         with (
-            patch(
-                "app.services.application._download_image",
+            patch.object(
+                S3ServiceImpl,
+                "download_private",
                 new_callable=AsyncMock,
                 return_value=(b"fake-image", "image/jpeg"),
             ),
-            patch("app.services.application.anthropic.AsyncAnthropic") as mock_cls,
+            patch.object(
+                OCRServiceImpl,
+                "check_condition",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
         ):
-            mock_cls.return_value = mock_client
             res = await client.post(
                 "/api/applications", json=body, headers=auth_headers(reviewer.id)
             )
@@ -507,16 +500,20 @@ class TestCreateApplicationImageValidation:
             "walletAddress": "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12",
             "imageKey": "reviews/bad.jpg",
         }
-        _, mock_client = self._make_claude_mock("FAIL")
         with (
-            patch(
-                "app.services.application._download_image",
+            patch.object(
+                S3ServiceImpl,
+                "download_private",
                 new_callable=AsyncMock,
                 return_value=(b"fake-image", "image/jpeg"),
             ),
-            patch("app.services.application.anthropic.AsyncAnthropic") as mock_cls,
+            patch.object(
+                OCRServiceImpl,
+                "check_condition",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
         ):
-            mock_cls.return_value = mock_client
             await client.post(
                 "/api/applications", json=body, headers=auth_headers(reviewer.id)
             )
@@ -539,8 +536,9 @@ class TestCreateApplicationImageValidation:
             "walletAddress": "0xAbCdEf1234567890AbCdEf1234567890AbCdEf12",
             "imageKey": "reviews/missing.jpg",
         }
-        with patch(
-            "app.services.application._download_image",
+        with patch.object(
+            S3ServiceImpl,
+            "download_private",
             new_callable=AsyncMock,
             side_effect=AppException(IMAGE_002),
         ):
@@ -556,9 +554,8 @@ class TestApplicationBlockchainPayout:
 
     @pytest.fixture(autouse=True)
     def mock_image_validation(self) -> Generator[None, None, None]:
-        with patch(
-            "app.services.application._validate_image_condition",
-            new_callable=AsyncMock,
+        with patch.object(
+            ApplicationServiceImpl, "_validate_image_condition", new_callable=AsyncMock
         ):
             yield
 
@@ -583,7 +580,7 @@ class TestApplicationBlockchainPayout:
         assert res.status_code == 200
         mock_add_task.assert_called_once()
         call_args = mock_add_task.call_args.args
-        assert call_args[0] is blockchain_service.payout_safe
+        assert call_args[0].__name__ == "payout_safe"
         assert call_args[1] == DEPLOYED_ADDRESS
         assert call_args[2] == FAKE_WALLET
         assert call_args[3] == 1_000_000_000_000_000
@@ -600,8 +597,8 @@ class TestApplicationBlockchainPayout:
             "walletAddress": FAKE_WALLET,
             "imageKey": "reviews/img.jpg",
         }
-        with patch(
-            "app.services.blockchain.payout_safe", new_callable=AsyncMock
+        with patch.object(
+            BlockchainServiceImpl, "payout_safe", new_callable=AsyncMock
         ) as mock_payout:
             res = await client.post(
                 "/api/applications", json=body, headers=auth_headers(reviewer.id)
@@ -621,7 +618,7 @@ class TestApplicationBlockchainPayout:
             "walletAddress": FAKE_WALLET,
             "imageKey": "reviews/img.jpg",
         }
-        with patch("app.services.blockchain.payout_safe", new_callable=AsyncMock):
+        with patch.object(BlockchainServiceImpl, "payout_safe", new_callable=AsyncMock):
             await client.post(
                 "/api/applications", json=body, headers=auth_headers(reviewer.id)
             )
@@ -645,8 +642,9 @@ class TestApplicationBlockchainPayout:
             "imageKey": "reviews/img.jpg",
         }
         # Mock the inner payout() — payout_safe catches its exception
-        with patch(
-            "app.services.blockchain.payout",
+        with patch.object(
+            BlockchainServiceImpl,
+            "payout",
             new_callable=AsyncMock,
             side_effect=RuntimeError("node unreachable"),
         ):

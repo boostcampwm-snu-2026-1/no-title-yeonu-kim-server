@@ -1,16 +1,35 @@
+import asyncio
 import uuid
 
 import boto3  # type: ignore[import-untyped]
 from botocore.exceptions import ClientError  # type: ignore[import-untyped]
 
 from app.core.config import settings
-from app.core.exceptions import S3_001, AppException
+from app.core.exceptions import IMAGE_002, S3_001, AppException
 from app.s3.schemas import S3PresignedUploadResp
 from app.s3.service import S3Service
 from app.schemas.common import S3FileType
 
 
 class S3ServiceImpl(S3Service):
+    async def download_private(self, image_key: str) -> tuple[bytes, str]:
+        def _sync() -> tuple[bytes, str]:
+            client = boto3.client(
+                "s3",
+                aws_access_key_id=settings.aws_access_key_id,
+                aws_secret_access_key=settings.aws_secret_access_key,
+                region_name=settings.aws_region,
+            )
+            try:
+                resp = client.get_object(
+                    Bucket=settings.s3_private_bucket, Key=image_key
+                )
+            except ClientError as e:
+                raise AppException(IMAGE_002) from e
+            return resp["Body"].read(), str(resp.get("ContentType", "image/jpeg"))
+
+        return await asyncio.get_running_loop().run_in_executor(None, _sync)
+
     def generate_presigned_upload_url(
         self, file_name: str, file_type: S3FileType, content_type: str
     ) -> S3PresignedUploadResp:

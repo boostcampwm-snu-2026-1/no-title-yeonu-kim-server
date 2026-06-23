@@ -1,16 +1,17 @@
 from uuid import UUID
 
+from app.blockchain.service import BlockchainService
 from app.core.exceptions import AUTH_007, EVENT_001, STORE_001, AppException
 from app.event.models import Event
 from app.event.repository import EventRepository
 from app.event.schemas import ApplicationSummary, EventCreateReq
 from app.event.service import EventService
-from app.services import blockchain as blockchain_service
 
 
 class EventServiceImpl(EventService):
-    def __init__(self, repo: EventRepository) -> None:
+    def __init__(self, repo: EventRepository, blockchain: BlockchainService) -> None:
         self.repo = repo
+        self.blockchain = blockchain
 
     async def get_event(self, event_id: str) -> Event:
         event = await self.repo.find_by_id(UUID(event_id))
@@ -28,7 +29,7 @@ class EventServiceImpl(EventService):
         if str(store.owner_id) != owner_id:
             raise AppException(AUTH_007)
 
-        contract_address = await blockchain_service.deploy_contract()
+        contract_address = await self.blockchain.deploy_contract()
 
         event = Event(
             store_id=UUID(data.storeId),
