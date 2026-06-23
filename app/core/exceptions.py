@@ -57,6 +57,9 @@ GEN_003_STATUS = ErrorCode(
 )
 GEN_005 = ErrorCode(400, "GEN_005", "Invalid wallet address format")
 
+# S3
+S3_001 = ErrorCode(500, "S3_001", "Failed to generate presigned URL")
+
 # Image (server-side only, not in mock)
 IMAGE_001 = ErrorCode(422, "IMAGE_001", "Image does not meet the event conditions")
 IMAGE_002 = ErrorCode(400, "IMAGE_002", "Image not found or inaccessible")
