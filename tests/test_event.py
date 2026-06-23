@@ -12,7 +12,6 @@ from app.models.review_submission import ReviewSubmission
 from tests.conftest import (
     auth_headers,
     create_application,
-    create_deposit,
     create_event,
     create_store,
     create_user,
@@ -37,7 +36,7 @@ class TestCreateEvent:
     ) -> None:
         owner = await create_user(db, role="OWNER")
         store = await create_store(db, owner.id)
-        await create_deposit(db, owner.id, amount=10000)
+
         body = {
             "storeId": str(store.id),
             "title": "Summer Promo",
@@ -58,7 +57,7 @@ class TestCreateEvent:
     ) -> None:
         owner = await create_user(db, role="OWNER")
         store = await create_store(db, owner.id)
-        await create_deposit(db, owner.id, amount=10000)
+
         body = {
             "storeId": str(store.id),
             "title": "DB Test Event",

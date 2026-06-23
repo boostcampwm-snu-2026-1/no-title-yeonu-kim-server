@@ -20,7 +20,6 @@ from app.db.session import get_db
 from app.email.service import EmailSender
 from app.main import app
 from app.models.application import Application
-from app.models.deposit import Deposit
 from app.models.email_verification import EmailVerification
 from app.models.event import Event
 from app.models.store import Store
@@ -157,19 +156,6 @@ async def create_event(
     await db.commit()
     await db.refresh(event)
     return event
-
-
-async def create_deposit(
-    db: AsyncSession,
-    user_id: UUID,
-    *,
-    amount: int = 100000,
-) -> Deposit:
-    deposit = Deposit(user_id=user_id, amount=amount, balance=amount)
-    db.add(deposit)
-    await db.commit()
-    await db.refresh(deposit)
-    return deposit
 
 
 async def create_application(

@@ -49,10 +49,6 @@ APPLICATION_003_SUBMIT = ErrorCode(
     409, "APPLICATION_003", "Review has already been submitted for this application"
 )
 
-# Deposit
-DEPOSIT_001 = ErrorCode(400, "DEPOSIT_001", "Deposit balance is insufficient")
-DEPOSIT_002 = ErrorCode(404, "DEPOSIT_002", "Deposit record not found")
-
 # General
 GEN_003_CLOSED = ErrorCode(400, "GEN_003", "Event is already closed")
 GEN_003_AMOUNT = ErrorCode(400, "GEN_003", "Amount must be a positive number")
